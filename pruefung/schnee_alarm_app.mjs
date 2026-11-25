@@ -159,7 +159,7 @@ try {
   await openDialog()
   check('Dialog nach dem Einrichten: Stand von WhatsApp am Webspace „noch nicht eingerichtet“', !!(await O.waitFor(async () => /noch nicht eingerichtet/.test(await waState()), 10000)), await waState())
   const blickLink = await O.page.evaluate(() => document.querySelector('.modal a[href*="aktion=blick"]')?.getAttribute('href') || '')
-  check('Abschnitt „Haupt-Gerät: alles auf einen Blick“: Link mit Code, „Bestätigung ans Büro-Handy“ ist an', new RegExp(`^http://localhost:${PORT}/wetter-alarm\\.php\\?aktion=blick&k=[a-f0-9]{24}$`).test(blickLink) && (await O.page.isChecked('#al-confirm')) && file.bestaetigungAnBuero === true && blickLink.endsWith(file.blick), blickLink)
+  check('Abschnitt „Haupt-Gerät: alles auf einen Blick“: Link mit Code; ohne Büro-Handy kein Häkchen „Bestätigung ans Büro“ (Vorgabe bleibt an)', new RegExp(`^http://localhost:${PORT}/wetter-alarm\\.php\\?aktion=blick&k=[a-f0-9]{24}$`).test(blickLink) && (await O.page.locator('#al-confirm').count()) === 0 && file.bestaetigungAnBuero === true && blickLink.endsWith(file.blick), blickLink)
   const blickSeite = await (await fetch(blickLink.replace(`http://localhost:${PORT}`, `http://127.0.0.1:${PHP}`))).text()
   check('Die Übersicht am Webspace zeigt den Ort', /Winterdienst auf einen Blick/.test(blickSeite) && /Salzburg Stadt/.test(blickSeite))
   await O.page.click('.modal details.al-wa-help summary')

@@ -52,7 +52,7 @@ test('Weckruf wiederholen: Vorgabe alle 3 Minuten, höchstens 5-mal; 0 schaltet 
   const php = read('wetter-alarm.php')
   assert.match(php, /'wiederholenMinuten' => 3, 'wiederholungen' => 5\]/)
   const teil = php.slice(php.indexOf('// niemand bestätigt: den Push wiederholen'), php.indexOf('// niemand bestätigt: Stufe 2'))
-  assert.ok(teil.includes('$frisch') && teil.includes("empty($alarm['test'])") && teil.includes("!$alarm['wach']"), 'nur frische, echte, unbestätigte Alarme')
+  assert.ok(teil.includes('$frisch') && teil.includes("empty($alarm['test'])") && teil.includes('!runde_bestaetigt($alarm)'), 'nur frische, echte, unbestätigte Alarme')
   assert.ok(teil.includes('(string) $tk, false)'), 'dieselben Codes, nur Push (ohne SMS, WhatsApp, E-Mail)')
 })
 
@@ -70,4 +70,40 @@ test('Übersicht „auf einen Blick“ und Bestätigung ans Büro: Link mit Code
   assert.ok(seite.includes("hash_equals((string) $e['blick'], $k)") && seite.includes("header('Refresh: 60')") && seite.includes("'X-Robots-Tag: noindex, nofollow'"))
   assert.ok(php.indexOf("if ($aktion === 'blick') {") < php.indexOf("ausgabe(403, ['fehler' => 'Schlüssel fehlt oder falsch'])"), 'mit dem Code, ohne Schlüssel der App')
   assert.match(php, /\$wer\[2\] && !empty\(\$e\['bestaetigungAnBuero'\]\)/, 'nur beim ersten Tippen')
+})
+
+test('Schnee-Alarm aus: die Datei für den Server hat keine Orte (der Server weckt niemanden), Fahrer-Links bleiben', () => {
+  const places = { Salzburg: { active: true, level1: ['e1'], level2: [] } }
+  assert.equal(file({ places }).orte.length, 1)
+  assert.deepEqual(file({ places, enabled: false }).orte, [])
+  assert.equal(file({ places, enabled: false }).schluessel, 'k'.repeat(64), 'Schlüssel bleibt, damit die App den Webspace weiter erreicht')
+})
+
+test('Ort ohne angehakte Lage weckt nie: fällt aus der Datei (statt „alles“ am Server)', () => {
+  const f = file({ places: { Salzburg: { active: true, level1: ['e1'], level2: [], types: { schnee: false, glaette: false, warnung: false } } } })
+  assert.deepEqual(f.orte, [])
+  assert.match(read('wetter-alarm.php'), /array_key_exists\('arten', \$ort\) \? array_values\(array_intersect\(ALARM_ARTEN, \(array\) \$ort\['arten'\]\)\) : ALARM_ARTEN/, 'auch der Server: leere Liste heißt keine Lage')
+})
+
+test('Wen der Server weckt (für Probe, Einladung, Blätter): eingeschaltete Orte mit Lage, ohne Ausgetretene', async () => {
+  const { alarmPeople, leftCompany, noTypes } = await import('../src/core/weather.js')
+  const locs = [loc, { name: 'Hallein', lat: 47.68, lon: 13.1 }]
+  const emps = [...employees, { id: 'e4', name: 'Weg', exitDate: '2026-10-31' }]
+  const alarm = { places: { Salzburg: { active: true, level1: ['e1', 'e4'], level2: ['e2'] }, Hallein: { active: false, level1: ['e3'], level2: [] } } }
+  assert.deepEqual([...alarmPeople(alarm, locs, [], emps, '2026-11-25')].sort(), ['e1', 'e2'])
+  assert.deepEqual([...alarmPeople({ ...alarm, enabled: false }, locs, [], emps, '2026-11-25')], [])
+  assert.deepEqual([...alarmPeople({ places: { Salzburg: { ...alarm.places.Salzburg, types: { schnee: false, glaette: false, warnung: false } } } }, [loc], [], emps, '2026-11-25')], [])
+  assert.equal(leftCompany({ exitDate: '2026-11-24' }, '2026-11-25'), true)
+  assert.equal(leftCompany({ exitDate: '2026-11-25' }, '2026-11-25'), false, 'am letzten Tag noch dabei')
+  assert.equal(noTypes({ types: { schnee: false, glaette: true, warnung: false } }), false)
+})
+
+test('Server: neue Lage im laufenden Alarm, Runden, Stufe 1 abwesend, alte Codes (Regeln am Quelltext)', () => {
+  const php = read('wetter-alarm.php')
+  assert.match(php, /function runde_bestaetigt\(array \$alarm\): bool/)
+  assert.match(php, /array_diff\(\$lage\['arten'\], \(array\) \(\$alarm\['arten'\] \?\? \$lage\['arten'\]\)\)/, 'neue Lage gegen die Lage des Alarms')
+  assert.match(php, /if \(!\$leute && !empty\(\$ort\['stufe1'\]\) && !empty\(\$ort\['stufe2'\]\)\)/, 'alle abwesend: gleich Stufe 2')
+  assert.match(php, /jetzt\(\) - \(int\) \$s\['alarm'\]\['gesendet'\] <= 36 \* 3600/, 'Bestätigung nur 36 Stunden')
+  assert.match(php, /'priority' => 2, 'tags' => \['white_check_mark'\]/, 'Nachricht ans Büro leise')
+  assert.match(php, /probe_senden\(\$e, \$person, 3, false\)/, 'Probe von der Seite nur Push und E-Mail')
 })

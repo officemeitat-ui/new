@@ -76,11 +76,10 @@ function regeln_ort(array $e, array $ort): array
     return $r;
 }
 
-/** Welche Lage an diesem Ort weckt (orte[].arten); ohne Angabe alle. */
+/** Welche Lage an diesem Ort weckt (orte[].arten); ohne Angabe alle, eine leere Liste: keine. */
 function arten_ort(array $ort): array
 {
-    $a = array_values(array_intersect(ALARM_ARTEN, (array) ($ort['arten'] ?? ALARM_ARTEN)));
-    return $a ?: ALARM_ARTEN;
+    return array_key_exists('arten', $ort) ? array_values(array_intersect(ALARM_ARTEN, (array) $ort['arten'])) : ALARM_ARTEN;
 }
 const STUFE_TEXT = [1 => 'gelb', 2 => 'orange', 3 => 'rot'];
 const WHATSAPP_TAG = 150; // höchstens so viele WhatsApp-Nachrichten am Tag (Schutz vor Kosten, falls etwas schiefläuft)
@@ -438,7 +437,7 @@ function person_zum_thema(?array $e, string $thema): ?array
  * Probe an eine Person (alle ihre Wege, Knopf „Bin wach“ ohne Protokoll). $grenze: höchstens so viele Proben je Stunde
  * für dieses Thema (die Seite „Handy einrichten“ ist ohne Anmeldung erreichbar). Liefert ['ok'|'grenze', Fehler].
  */
-function probe_senden(array $e, array $person, int $grenze): array
+function probe_senden(array $e, array $person, int $grenze, bool $alleWege = true): array
 {
     $thema = (string) ($person['ntfy'] ?? '');
     $token = bin2hex(random_bytes(12));
@@ -455,7 +454,7 @@ function probe_senden(array $e, array $person, int $grenze): array
     if (!$darf) {
         return ['grenze', []];
     }
-    $fehler = benachrichtigen($e, $person, 'Probe Winterdienst', 'Probe: So kommt der Schnee-Alarm auf dieses Handy. Bitte mit „Bin wach“ bestätigen.', $token, true, false);
+    $fehler = benachrichtigen($e, $person, 'Probe Winterdienst', 'Probe: So kommt der Schnee-Alarm auf dieses Handy. Bitte mit „Bin wach“ bestätigen.', $token, $alleWege, false);
     mit_stand(function (array &$stand) use ($person, $fehler) {
         protokoll($stand, 'Probe', 'Probe an ' . ($person['name'] ?? '?') . ($fehler ? ' – ' . implode('; ', $fehler) : ''));
     });
@@ -611,14 +610,14 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
 }
 
 /** Alarm an eine Liste von Personen senden, je Person ein eigener Bestätigungs-Code. */
-function alarm_senden(array $e, array &$alarm, array $personen, string $titel, string $text): array
+function alarm_senden(array $e, array &$alarm, array $personen, string $titel, string $text, ?int $stufe = null): array
 {
     $fehler = [];
     $codes = [];
     foreach ($personen as $i => $p) {
         $token = bin2hex(random_bytes(12));
         $codes[$i] = $token;
-        $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []) + (!empty($p['ntfy']) ? ['thema' => (string) $p['ntfy']] : []);
+        $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $stufe ?? ($alarm['eskaliert'] ? 2 : 1)] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []) + (!empty($p['ntfy']) ? ['thema' => (string) $p['ntfy']] : []);
         $fehler = array_merge($fehler, benachrichtigen($e, $p, $titel, $text, $token, false));
     }
     // SMS und WhatsApp erst, wenn alle ihren Push haben
@@ -627,6 +626,46 @@ function alarm_senden(array $e, array &$alarm, array $personen, string $titel, s
     }
     foreach ($personen as $i => $p) {
         $fehler = array_merge($fehler, whatsapp_person($p, $titel, $text, $codes[$i]));
+    }
+    return $fehler;
+}
+
+/**
+ * Die laufende Runde eines Alarms: wer zuletzt geweckt wurde (beim Alarm alle aus Stufe 1, bei einer neuen Lage nur die
+ * dazu Passenden). Hat jemand aus der Runde bestätigt, enden Erinnerungen und Stufe 2 für diese Runde. Ältere Alarme
+ * ohne Runde: alle Empfänger.
+ */
+function runde(array $alarm): array
+{
+    return array_values(array_intersect((array) ($alarm['runde'] ?? array_keys((array) ($alarm['empfaenger'] ?? []))), array_keys((array) ($alarm['empfaenger'] ?? []))));
+}
+
+function runde_bestaetigt(array $alarm): bool
+{
+    foreach (runde($alarm) as $tk) {
+        if (isset($alarm['wach'][$tk])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Neuen Alarm an Stufe 1 schicken. Ist niemand aus Stufe 1 da (alle abwesend), gleich Stufe 2 (statt stillschweigend
+ * niemanden). Liefert Fehlertexte; $alarm ist danach der neue Alarm.
+ */
+function alarm_neu(array $e, array &$stand, string $name, array $ort, ?array &$alarm, array $lage, string $text, string $titel, string $objekte, int $jetzt, string $eintrag): array
+{
+    $alarm = ['id' => bin2hex(random_bytes(6)), 'gesendet' => $jetzt, 'stufe' => (int) $lage['stufe'], 'text' => $text, 'arten' => array_values(array_unique($lage['arten'])), 'empfaenger' => [], 'wach' => [], 'eskaliert' => null, 'test' => false, 'rundeSeit' => $jetzt];
+    $leute = stufe1($ort, $jetzt, $alarm['arten']);
+    $fehler = alarm_senden($e, $alarm, $leute, $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.', 1);
+    $alarm['runde'] = array_keys($alarm['empfaenger']);
+    protokoll($stand, $name, $eintrag . $text);
+    if (!$leute && !empty($ort['stufe1']) && !empty($ort['stufe2'])) {
+        $alarm['eskaliert'] = $jetzt;
+        $fehler = array_merge($fehler, alarm_senden($e, $alarm, (array) $ort['stufe2'], "$titel – niemand aus Stufe 1 da", "$text. Aus Stufe 1 ist laut App niemand da (Urlaub, Krankenstand). Bitte übernehmen oder jemanden anrufen.", 2));
+        $alarm['runde'] = array_keys($alarm['empfaenger']);
+        protokoll($stand, $name, 'Niemand aus Stufe 1 da: Stufe 2 alarmiert');
     }
     return $fehler;
 }
@@ -684,26 +723,40 @@ function pruefen(array $e): array
                     $s['wartend'] = $s['wartend'] ?? ['seit' => $jetzt, 'text' => $lage['text'], 'arten' => $lage['arten']];
                 } elseif ($neu || !empty($s['wartend'])) {
                     $text = !empty($s['wartend']) ? gemeldet($s['wartend']) . ($s['wartend']['text'] !== $lage['text'] ? '. Jetzt: ' . $lage['text'] : '') : $lage['text'];
-                    $alarm = ['id' => bin2hex(random_bytes(6)), 'gesendet' => $jetzt, 'stufe' => $lage['stufe'], 'text' => $text, 'empfaenger' => [], 'wach' => [], 'eskaliert' => null, 'test' => false];
-                    $fehler = alarm_senden($e, $alarm, stufe1($ort, $jetzt, array_merge($lage['arten'], (array) ($s['wartend']['arten'] ?? []))), $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.');
+                    $fehler = alarm_neu($e, $stand, $name, $ort, $alarm, ['stufe' => $lage['stufe'], 'arten' => array_merge($lage['arten'], (array) ($s['wartend']['arten'] ?? []))], $text, $titel, $objekte, $jetzt, 'Alarm: ');
                     unset($s['wartend']);
-                    protokoll($stand, $name, "Alarm: $text");
+                } elseif ($alarm && empty($alarm['test']) && array_diff($lage['arten'], (array) ($alarm['arten'] ?? $lage['arten']))) {
+                    // neue Lage im laufenden Alarm (z. B. erst Glätte, jetzt Schnee): wer dazu passt und noch nichts bekam, wird geweckt
+                    $neueArten = array_values(array_diff($lage['arten'], (array) $alarm['arten']));
+                    $schon = array_column((array) $alarm['empfaenger'], 'name');
+                    $dazu = array_values(array_filter(stufe1($ort, $jetzt, $neueArten), fn ($p) => !in_array((string) ($p['name'] ?? ''), $schon, true)));
+                    $alarm['arten'] = array_values(array_unique(array_merge((array) $alarm['arten'], $lage['arten'])));
+                    $alarm['text'] = $lage['text'];
+                    if ($dazu) {
+                        $vorher = array_keys((array) $alarm['empfaenger']);
+                        $fehler = alarm_senden($e, $alarm, $dazu, $titel, $lage['text'] . '.' . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.', 1);
+                        $alarm['runde'] = array_values(array_diff(array_keys($alarm['empfaenger']), $vorher));
+                        $alarm['rundeSeit'] = $jetzt;
+                        $alarm['zuletzt'] = $jetzt;
+                        $alarm['wiederholt'] = 0;
+                        $alarm['eskaliert'] = null;
+                        protokoll($stand, $name, 'Neue Lage: ' . $lage['text'] . ' – an ' . implode(', ', array_column($dazu, 'name')));
+                    }
                 }
             } elseif (!empty($s['wartend']) && !in_ruhezeit($r, $jetzt)) {
                 // in der Ruhezeit gemeldet, inzwischen vorbei: trotzdem wecken (Schnee liegt)
-                $text = gemeldet($s['wartend']);
-                $alarm = ['id' => bin2hex(random_bytes(6)), 'gesendet' => $jetzt, 'stufe' => 1, 'text' => $text, 'empfaenger' => [], 'wach' => [], 'eskaliert' => null, 'test' => false];
-                $fehler = alarm_senden($e, $alarm, stufe1($ort, $jetzt, (array) ($s['wartend']['arten'] ?? [])), $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.');
+                $fehler = alarm_neu($e, $stand, $name, $ort, $alarm, ['stufe' => 1, 'arten' => (array) ($s['wartend']['arten'] ?? [])], gemeldet($s['wartend']), $titel, $objekte, $jetzt, 'Alarm nach der Ruhezeit: ');
                 unset($s['wartend']);
-                protokoll($stand, $name, "Alarm nach der Ruhezeit: $text");
             }
             // niemand bestätigt: den Push wiederholen (nur Push, ohne E-Mail, SMS und WhatsApp; mit denselben Codes)
             // nur für einen frischen Alarm (sonst käme nach dem Einschalten des Wiederholens eine Erinnerung zu einem Alarm von gestern)
-            $frisch = $alarm && $jetzt - (int) $alarm['gesendet'] <= ((float) $r['wiederholungen'] * (float) $r['wiederholenMinuten'] + 10) * 60;
-            if ($alarm && $frisch && empty($alarm['test']) && !$alarm['wach'] && !empty($alarm['empfaenger']) && (float) $r['wiederholenMinuten'] > 0
-                && (int) ($alarm['wiederholt'] ?? 0) < (int) $r['wiederholungen'] && $jetzt - (int) ($alarm['zuletzt'] ?? $alarm['gesendet']) >= (float) $r['wiederholenMinuten'] * 60 - 30) {
+            $seit = $alarm ? (int) ($alarm['rundeSeit'] ?? $alarm['gesendet']) : 0;
+            $frisch = $alarm && $jetzt - $seit <= ((float) $r['wiederholungen'] * (float) $r['wiederholenMinuten'] + 10) * 60;
+            if ($alarm && $frisch && empty($alarm['test']) && !runde_bestaetigt($alarm) && runde($alarm) && (float) $r['wiederholenMinuten'] > 0
+                && (int) ($alarm['wiederholt'] ?? 0) < (int) $r['wiederholungen'] && $jetzt - (int) ($alarm['zuletzt'] ?? $seit) >= (float) $r['wiederholenMinuten'] * 60 - 30) {
                 $n = 0;
-                foreach ($alarm['empfaenger'] as $tk => $em) {
+                foreach (runde($alarm) as $tk) {
+                    $em = $alarm['empfaenger'][$tk];
                     if (empty($em['thema'])) {
                         continue;
                     }
@@ -718,9 +771,9 @@ function pruefen(array $e): array
             }
             // niemand bestätigt: Stufe 2
             // niemand geweckt (Ort ohne Stufe 1): keine nächtliche Eskalation ans Büro
-            if ($alarm && empty($alarm['test']) && !empty($alarm['empfaenger']) && !$alarm['wach'] && !$alarm['eskaliert'] && !empty($ort['stufe2']) && $jetzt - (int) $alarm['gesendet'] >= $r['eskalationMinuten'] * 60) {
+            if ($alarm && empty($alarm['test']) && runde($alarm) && !runde_bestaetigt($alarm) && !$alarm['eskaliert'] && !empty($ort['stufe2']) && $jetzt - $seit >= $r['eskalationMinuten'] * 60) {
                 $alarm['eskaliert'] = $jetzt;
-                $fehler = array_merge($fehler, alarm_senden($e, $alarm, (array) $ort['stufe2'], "$titel – niemand bestätigt", sprintf('%s. Seit %s Uhr hat niemand aus dem Winterdienst-Team bestätigt. Bitte übernehmen oder das Team anrufen.', $alarm['text'], uhrzeit((int) $alarm['gesendet']))));
+                $fehler = array_merge($fehler, alarm_senden($e, $alarm, (array) $ort['stufe2'], "$titel – niemand bestätigt", sprintf('%s. Seit %s Uhr hat niemand aus dem Winterdienst-Team bestätigt. Bitte übernehmen oder das Team anrufen.', $alarm['text'], uhrzeit($seit)), 2));
                 protokoll($stand, $name, 'Niemand bestätigt: Stufe 2 alarmiert');
             }
             foreach ($fehler as $f) {
@@ -761,6 +814,7 @@ if ($aktion === 'wach') {
     $zu = $e ? alarm_zum_code($token) : null;
     // Probe (Seite „Handy einrichten“ oder aus der App): bestätigt, dass das Handy weckt
     $probe = !$zu && $e ? (mit_stand(fn (array &$s) => $s)['proben'][$token] ?? null) : null;
+    $probe = $probe && jetzt() - (int) ($probe['gesendet'] ?? 0) <= 36 * 3600 ? $probe : null; // alte Probe-Links gelten nicht mehr
     sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : (array) ($probe ?? []), true);
     if ($probe && $methode === 'POST') {
         mit_stand(function (array &$stand) use ($token) {
@@ -777,7 +831,7 @@ if ($aktion === 'wach') {
     }
     $wer = mit_stand(function (array &$stand) use ($token) {
         foreach ($stand['orte'] as $name => &$s) {
-            if (isset($s['alarm']['empfaenger'][$token])) {
+            if (isset($s['alarm']['empfaenger'][$token]) && jetzt() - (int) $s['alarm']['gesendet'] <= 36 * 3600) {
                 $erstes = !isset($s['alarm']['wach'][$token]);
                 $s['alarm']['wach'][$token] = $s['alarm']['wach'][$token] ?? jetzt();
                 $person = $s['alarm']['empfaenger'][$token]['name'];
@@ -785,7 +839,7 @@ if ($aktion === 'wach') {
                     $stand['bereit'][(string) $s['alarm']['empfaenger'][$token]['thema']] = jetzt(); // dieses Handy weckt
                 }
                 protokoll($stand, $name, "$person ist wach (bestätigt)");
-                return [$person, $name, $erstes, !empty($s['alarm']['test'])];
+                return [$person, $name, $erstes, !empty($s['alarm']['test']), (int) ($s['alarm']['empfaenger'][$token]['stufe'] ?? 1)];
             }
         }
         return null;
@@ -795,14 +849,14 @@ if ($aktion === 'wach') {
         exit;
     }
     // Bestätigung ans Büro-Handy (Stufe 2 „Büro“ mit Push), wenn so eingestellt; nur beim ersten Tippen
-    if ($wer[2] && !empty($e['bestaetigungAnBuero'])) {
+    if ($wer[2] && !empty($e['bestaetigungAnBuero']) && $wer[0] !== 'Büro') {
         foreach ((array) ($e['orte'] ?? []) as $ort) {
             if (($ort['name'] ?? '') !== $wer[1]) {
                 continue;
             }
             foreach ((array) ($ort['stufe2'] ?? []) as $b) {
                 if (($b['name'] ?? '') === 'Büro' && !empty($b['ntfy'])) {
-                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => ($wer[3] ? 'Testalarm bestätigt: ' : 'Bestätigt: ') . 'Winterdienst ' . $wer[1], 'message' => $wer[0] . ' ist wach (' . uhrzeit(jetzt()) . ' Uhr).', 'priority' => 3, 'tags' => ['white_check_mark'], 'click' => blick_link($e) ?: adresse($e) . '#wetter']);
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => ($wer[3] ? 'Testalarm bestätigt: ' : 'Bestätigt: ') . 'Winterdienst ' . $wer[1], 'message' => $wer[0] . ' ist wach (' . uhrzeit(jetzt()) . ' Uhr).', 'priority' => 2, 'tags' => ['white_check_mark'], 'click' => blick_link($e) ?: adresse($e) . '#wetter']);
                 }
             }
         }
@@ -903,7 +957,8 @@ if ($aktion === 'handy') {
             html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('h_titel'));
             exit;
         }
-        [$ok, $fehler] = probe_senden($e, $person, 3);
+        // von der Seite (ohne Anmeldung) nur Push und E-Mail: SMS und WhatsApp kosten und zählen zur Grenze der Alarme
+        [$ok, $fehler] = probe_senden($e, $person, 3, false);
         // Fehler eines Weges (z. B. Push-Dienst antwortet nicht) stehen im Protokoll der App; die Person bekommt nur den Hinweis
         $meldung = $ok === 'grenze' ? '<p class="fehler" role="alert">' . th('h_probe_zuviel') . '</p>'
             : ($fehler ? '<p class="fehler" role="alert">' . th('h_probe_fehler') . '</p>' : '<p class="ok" role="status">' . th('h_probe_gesendet') . '</p>');

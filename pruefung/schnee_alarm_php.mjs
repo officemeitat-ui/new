@@ -22,6 +22,9 @@
 //     (Schneefall ab, so weit voraus); Weckruf wiederholen, bis jemand bestätigt (nur Push, dieselben Codes, höchstens n-mal).
 // 12. „Winterdienst auf einen Blick“ fürs Haupt-Gerät (Code, ohne Anmeldung): Alarme, wer bestätigt hat, Handys; Push ans
 //     Büro-Handy bei jeder ersten Bestätigung.
+// 13. Neue Lage im laufenden Alarm (erst Glätte, dann Schnee): die zum Schnee Passenden werden geweckt, mit eigener Runde
+//     für Erinnerungen und Stufe 2; ganze Stufe 1 abwesend: gleich Stufe 2; Codes älter als 36 Stunden gelten nicht;
+//     das Büro bekommt keine Nachricht über die eigene Bestätigung.
 // Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP), 19835 (SMS-Dienst), 19841 (SMS-Gateway).
 import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -36,6 +39,7 @@ const WA = 19833
 const HTTP = 19834
 const SMS = 19835
 const GATE = 19841
+const SPAET = 19843 // zweiter PHP-Server, zwei Tage später (alte Codes)
 const GATE_USER = 'H7XQ2B'
 const GATE_PASS = 'pw-3x9_kLq2'
 const SMS_KEY = 'smsKey0123456789abcdefABCDEF4321'
@@ -80,6 +84,9 @@ const SZENEN = {
     Seekirchen: { wert: (at) => (at === hour(27) ? { t: -1, tp: 0.4, sf: 0 } : still()) },
     Anif: { wert: snowAt([29]) },
   },
+  // Tag 3 (12.12.): erst nur Glätte in Salzburg, dann kommt Schnee dazu; Schnee in Obertrum (dort ist Stufe 1 abwesend)
+  tag3a: { Salzburg: { wert: (at) => (at === hour(52) ? { t: -1, tp: 0.4, sf: 0 } : still()) }, Obertrum: { wert: snowAt([52]) } },
+  tag3b: { Salzburg: { wert: (at) => (at === hour(52) ? { t: -1, tp: 0.4, sf: 0 } : at === hour(53) ? { t: -1, tp: 1.2, sf: 1.2 } : still()) }, Obertrum: { wert: snowAt([52]) } },
 }
 const wetterAnfragen = []
 const wetter = createServer((req, res) => {
@@ -92,7 +99,7 @@ const wetter = createServer((req, res) => {
   if (!SZENEN[szene] || !ort) return json(404, { fehler: 'unbekannt' })
   if (s === 'aus') return json(503, { detail: 'Wartung' })
   if (art === 'warnings') return json(200, { properties: { warnings: (s.warn || []).map((w) => ({ properties: w })) } })
-  const stunden = Array.from({ length: 34 }, (_, i) => T0 - 2 * 3600 + i * 3600)
+  const stunden = Array.from({ length: 80 }, (_, i) => T0 - 2 * 3600 + i * 3600)
   const werte = stunden.map((at) => (s.wert || still)(at))
   json(200, {
     timestamps: stunden.map((at) => new Date(at * 1000).toISOString().replace('.000Z', '+00:00')),
@@ -508,7 +515,7 @@ try {
   const pp = n.push.find((p) => p.topic === 'wd-dragan')
   const tP = tokenOf(pp || { actions: [] })
   check('Probe von der Seite: Bestätigung auf der Seite, Push mit Knopf „Bin wach“ und ohne Protokoll-Knopf', /Proba je poslana/.test(flat(sp.html)) && !!pp && pp.title === 'Probe Winterdienst' && /^Probe: So kommt der Schnee-Alarm auf dieses Handy\./.test(pp.message) && tP.length === 24 && !pp.actions.some((a) => /aktion=protokoll/.test(a.url)), JSON.stringify(pp || {}).slice(0, 300))
-  check('Probe geht über alle Wege der Person: E-Mail ohne Protokoll-Link, SMS über das Handy (eigener Server laut Einstellung, hier nachgestellt)', n.mail.length === 1 && n.mail[0].an === 'dragan@cleanos.example' && /Bitte bestätigen: .*aktion=wach&t=/.test(n.mail[0].text) && !/Protokoll eintragen/.test(n.mail[0].text) && gateListe.at(-1)?.phoneNumbers?.[0] === '+436641111111' && gateListe.at(-1).textMessage.text.endsWith(`?w=${tP}`), JSON.stringify(n.mail[0] || {}).slice(0, 200))
+  check('Probe von der Seite: Push und E-Mail (ohne Protokoll-Link), keine SMS (kostet; der Link steht auf dem Blatt)', n.mail.length === 1 && n.mail[0].an === 'dragan@cleanos.example' && /Bitte bestätigen: .*aktion=wach&t=/.test(n.mail[0].text) && !/Protokoll eintragen/.test(n.mail[0].text) && !gateListe.some((m) => m.textMessage.text.endsWith(`?w=${tP}`)), JSON.stringify(n.mail[0] || {}).slice(0, 200))
   r = await api('status')
   check('Stand für die App: Probe gesendet (nach der letzten Bestätigung, also offen)', r.json.handys['wd-dragan']?.probe > 0 && r.json.handys['wd-dragan'].probe >= (r.json.handys['wd-dragan'].bestaetigt || 0), JSON.stringify(r.json.handys))
   check('Bestätigte Alarme zählen auch: Hallein (03:10 bestätigt) ist „bereit“', r.json.handys['wd-h2']?.bestaetigt > 0, JSON.stringify(r.json.handys))
@@ -526,7 +533,7 @@ try {
   check('Höchstens drei Proben je Stunde von der Seite', /Upravo je poslano više proba/.test(flat(sp.html)) && n.push.filter((p) => p.topic === 'wd-dragan').length === 2, `${n.push.length}`)
   r = await api('probe', { method: 'POST', json: { thema: 'wd-ana' } })
   n = await neu()
-  check('Probe aus der App an eine Person (Thema): Push an sie', r.status === 200 && r.json.gesendet === true && n.push.length === 1 && n.push[0].topic === 'wd-ana' && n.push[0].title === 'Probe Winterdienst', JSON.stringify(r.json))
+  check('Probe aus der App an eine Person (Thema): Push an sie und SMS über das Handy (alle Wege)', r.status === 200 && r.json.gesendet === true && n.push.length === 1 && n.push[0].topic === 'wd-ana' && n.push[0].title === 'Probe Winterdienst' && gateListe.at(-1)?.phoneNumbers?.[0] === '+436642222222', JSON.stringify(r.json))
   check('Probe aus der App: unbekanntes Thema 404, ohne Schlüssel 403', (await api('probe', { method: 'POST', json: { thema: 'wd-niemand' } })).status === 404 && (await api('probe', { method: 'POST', key: '', json: { thema: 'wd-ana' } })).status === 403)
   r = await api('sms', { method: 'POST', json: { entfernen: true } })
   check('SMS über das Handy entfernt: Zugang gelöscht, Passwort liegt nirgends mehr', r.json.eingerichtet === false && !readdirSync(dir).some((f) => statSync(join(dir, f)).isFile() && readFileSync(join(dir, f), 'utf8').includes(GATE_PASS)))
@@ -598,7 +605,7 @@ try {
   r = await api('wach', { method: 'POST', key: '', extra: `&t=${tD12}` })
   n = await neu()
   const conf = n.push.find((p) => p.topic === 'wd-buero')
-  check('„Bin wach“: das Büro-Handy bekommt eine leise Nachricht mit Name und Uhrzeit, Klick öffnet die Übersicht', r.status === 200 && !!conf && conf.title === 'Testalarm bestätigt: Winterdienst Salzburg' && conf.message === 'Dragan Jović ist wach (02:05 Uhr).' && conf.priority === 3 && conf.click === `http://127.0.0.1:${HTTP}/wetter-alarm.php?aktion=blick&k=${BLICK}`, JSON.stringify(conf || {}))
+  check('„Bin wach“: das Büro-Handy bekommt eine leise Nachricht mit Name und Uhrzeit, Klick öffnet die Übersicht', r.status === 200 && !!conf && conf.title === 'Testalarm bestätigt: Winterdienst Salzburg' && conf.message === 'Dragan Jović ist wach (02:05 Uhr).' && conf.priority === 2 && conf.click === `http://127.0.0.1:${HTTP}/wetter-alarm.php?aktion=blick&k=${BLICK}`, JSON.stringify(conf || {}))
   await api('wach', { method: 'POST', key: '', extra: `&t=${tD12}` })
   n = await neu()
   check('Zweimal getippt: keine zweite Nachricht ans Büro', !n.push.length)
@@ -609,6 +616,50 @@ try {
   check('Übersicht Anif: Alarm noch niemand bestätigt, mit Erinnerungen', /Anif/.test(txt) && /Alarm 11\.12\. 04:02 Uhr – noch niemand bestätigt/.test(txt), txt.slice(txt.indexOf('Anif'), txt.indexOf('Anif') + 200))
   check('Übersicht: Handys in Stufe 1 mit „bereit“ bzw. „noch nicht geprüft“, Protokoll des Alarms', /Handys in Stufe 1/.test(txt) && /✓ Dragan Jović/.test(txt) && /Handy noch nicht geprüft/.test(txt) && /Protokoll des Alarms/.test(txt))
   check('Übersicht verrät keine Codes und keine Themen', !bl.html.includes(tD12) && !bl.html.includes('wd-dragan') && !bl.html.includes(KEY))
+
+  // ---------------------------------------------------------------- 13. Neue Lage, Stufe 1 abwesend, alte Codes, Büro
+  const lage3 = einstellungen({ wiederholenMinuten: 3, wiederholungen: 1, eskalationMinuten: 15 })
+  lage3.blick = BLICK
+  lage3.bestaetigungAnBuero = true
+  lage3.orte = [
+    { ...lage3.orte[0], stufe1: [{ name: 'Anna Räumer', ntfy: 'wd-anna', bei: 'schnee' }, { name: 'Bernd Streuer', ntfy: 'wd-bernd', bei: 'glaette' }], stufe2: [{ name: 'Büro', ntfy: 'wd-buero' }] },
+    { ...lage3.orte[2], stufe1: [{ name: 'Uli Urlaub', ntfy: 'wd-uli', abwesend: [['2026-12-12', '2026-12-12']] }], stufe2: [{ name: 'Chef', ntfy: 'wd-chef' }] },
+  ]
+  r = await api('speichern', { method: 'POST', json: lage3 })
+  check('Einstellungen für Tag 3 übertragen', r.status === 200)
+  await neu()
+  const t3 = hour(50) + 600 // 12.12. 02:10
+  b = await cron(t3, 'tag3a')
+  n = await neu()
+  const an = (x) => n.push.filter((p) => p.topic === x)
+  check('Erst nur Glätte: Bernd (Streuen) wird geweckt, Anna (Räumen) nicht', an('wd-bernd').length === 1 && an('wd-anna').length === 0 && /^Glätte möglich/.test(an('wd-bernd')[0].message), n.push.map((p) => p.topic).join(','))
+  check('Obertrum: ganze Stufe 1 abwesend: Stufe 2 (Chef) gleich alarmiert statt niemand', an('wd-chef').length === 1 && an('wd-chef')[0].title === 'Winterdienst Obertrum – niemand aus Stufe 1 da' && /Aus Stufe 1 ist laut App niemand da/.test(an('wd-chef')[0].message) && an('wd-uli').length === 0, JSON.stringify(an('wd-chef')[0] || {}).slice(0, 200))
+  r = await api('wach', { method: 'POST', key: '', extra: `&t=${tokenOf(an('wd-bernd')[0])}` })
+  n = await neu()
+  check('Bernd bestätigt: Büro bekommt eine leise Nachricht (Priorität 2)', r.status === 200 && n.push.length === 1 && n.push[0].topic === 'wd-buero' && n.push[0].title === 'Bestätigt: Winterdienst Salzburg' && n.push[0].priority === 2, JSON.stringify(n.push))
+  b = await cron(t3 + 1200, 'tag3b')
+  n = await neu()
+  check('20 Minuten später kommt Schnee dazu: jetzt wird Anna (Räumen) geweckt, Bernd nicht noch einmal', an('wd-anna').length === 1 && an('wd-bernd').length === 0 && /Schneefall ab 04:00 Uhr/.test(an('wd-anna')[0].message), `${n.push.map((p) => `${p.topic}: ${p.title}`).join(' | ')}`)
+  r = await api('status')
+  check('Protokoll: „Neue Lage … – an Anna Räumer“', r.json.protokoll.some((p) => p.ort === 'Salzburg' && /^Neue Lage: .* – an Anna Räumer$/.test(p.text)), JSON.stringify(r.json.protokoll.slice(0, 4)))
+  await cron(t3 + 1200 + 180, 'tag3b')
+  n = await neu()
+  check('Erinnerung nach 3 Minuten nur an Anna (Bernds Bestätigung beendet ihre Runde nicht)', an('wd-anna').length === 1 && /^Erinnerung/.test(an('wd-anna')[0].title) && an('wd-bernd').length === 0, n.push.map((p) => `${p.topic}: ${p.title}`).join(' | '))
+  await cron(t3 + 1200 + 16 * 60, 'tag3b')
+  n = await neu()
+  const esk = an('wd-buero')[0]
+  check('Anna bestätigt 16 Minuten nicht: Stufe 2 (Büro) für die neue Lage', !!esk && esk.title === 'Winterdienst Salzburg – niemand bestätigt' && /Seit 02:30 Uhr hat niemand/.test(esk.message), JSON.stringify(esk || {}).slice(0, 200))
+  r = await api('wach', { method: 'POST', key: '', extra: `&t=${tokenOf(esk)}` })
+  n = await neu()
+  check('Das Büro bestätigt selbst: keine Nachricht ans Büro über die eigene Bestätigung', r.status === 200 && !n.push.length, JSON.stringify(n.push))
+  // alte Codes: ein zweiter Server zwei Tage später
+  const spaet = spawn('php', ['-S', `127.0.0.1:${SPAET}`, '-t', R], { env: env(t3 + 2 * 86400, 'ruhig'), stdio: 'ignore' })
+  await wait(900)
+  const alt = await fetch(`http://127.0.0.1:${SPAET}/wetter-alarm.php?aktion=wach&t=${tokenOf(an('wd-anna')[0] || esk)}`, { method: 'POST' })
+  const altProbe = await fetch(`http://127.0.0.1:${SPAET}/wetter-alarm.php?aktion=wach&t=${tP}`, { method: 'POST' })
+  spaet.kill()
+  n = await neu()
+  check('Codes älter als 36 Stunden gelten nicht mehr (Alarm und Probe), keine Nachricht ans Büro', alt.status === 404 && altProbe.status === 404 && !n.push.length, `${alt.status} ${altProbe.status}`)
 } catch (err) {
   check('Ablauf ohne Ausnahme', false, String(err?.stack || err).slice(0, 900))
 }

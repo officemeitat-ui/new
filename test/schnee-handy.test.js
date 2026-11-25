@@ -70,13 +70,13 @@ test('Blätter zum Einrichten: je Person eine Seite mit Name und QR-Code, Hinwei
 test('Server: Einrichtungsseite und Probe (Regeln am Quelltext)', () => {
   const alarm = read('wetter-alarm.php')
   const seite = alarm.slice(alarm.indexOf("if ($aktion === 'handy') {"), alarm.indexOf('// Winterdienst-Protokoll am Handy:'))
-  assert.ok(seite.includes('fremde_herkunft()') && seite.includes('probe_senden($e, $person, 3)'), 'Probe nur vom eigenen Formular, höchstens 3 je Stunde')
+  assert.ok(seite.includes('fremde_herkunft()') && seite.includes('probe_senden($e, $person, 3, false)'), 'Probe nur vom eigenen Formular, höchstens 3 je Stunde')
   assert.ok(seite.includes("'X-Robots-Tag: noindex, nofollow'") && seite.includes("'Referrer-Policy: no-referrer'"))
   assert.match(seite, /'ntfy:\/\/' \. \$wo \. '\/' \. rawurlencode\(\$thema\)/)
   assert.ok(alarm.indexOf("if ($aktion === 'handy') {") < alarm.indexOf("ausgabe(403, ['fehler' => 'Schlüssel fehlt oder falsch'])"), 'ohne Schlüssel erreichbar (Link für die Person)')
   assert.ok(alarm.indexOf("if ($aktion === 'probe' && $methode === 'POST')") > alarm.indexOf("ausgabe(403, ['fehler' => 'Schlüssel fehlt oder falsch'])"), 'Probe aus der App nur mit Schlüssel')
   // Probe: alle Wege, ohne Protokoll-Knopf; „Bin wach“ zur Probe und zu einem Alarm markiert das Handy als bereit
-  assert.match(alarm, /benachrichtigen\(\$e, \$person, 'Probe Winterdienst', [^;]+, \$token, true, false\)/)
+  assert.match(alarm, /benachrichtigen\(\$e, \$person, 'Probe Winterdienst', [^;]+, \$token, \$alleWege, false\)/)
   assert.ok((alarm.match(/\$stand\['bereit'\]\[/g) || []).length >= 2)
   assert.match(alarm, /function fremde_herkunft\(\): bool/)
 })

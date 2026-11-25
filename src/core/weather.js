@@ -519,6 +519,29 @@ export function alarmPlace(alarm, place, objects, locations) {
 
 /** Was an einem Ort wecken kann: Schneefall, Glätte, Warnung von GeoSphere (Schnee, Glatteis). */
 export const ALARM_TYPES = { schnee: 'Schneefall', glaette: 'Glätte', warnung: 'Warnung von GeoSphere' }
+/** Ort, an dem keine Lage angehakt ist (weckt nie). */
+export const noTypes = (set) => !!set?.types && Object.keys(ALARM_TYPES).every((k) => set.types[k] === false)
+
+/** Ausgetreten (Austritt vor heute): der Server weckt sie nicht mehr. */
+export const leftCompany = (e, today) => !!(e?.exitDate && e.exitDate < today)
+
+/**
+ * Wer am Webspace geweckt bzw. geprüft werden kann: Personen aus Stufe 1 und 2 der eingeschalteten Orte (mit mindestens
+ * einer Lage), ohne Ausgetretene. Wie alarmFile, für Einladungen, Proben und die Liste „Handy geprüft“.
+ */
+export function alarmPeople(alarm, locations, objects, employees, today) {
+  const ids = new Set()
+  if (alarm?.enabled === false) return ids
+  for (const loc of locations || []) {
+    const set = alarmPlace(alarm, loc, objects, locations)
+    if (!set.active || noTypes(set)) continue
+    for (const id of [...set.level1, ...set.level2]) {
+      const e = (employees || []).find((x) => x.id === id)
+      if (e && !leftCompany(e, today)) ids.add(id)
+    }
+  }
+  return ids
+}
 /** Welche Alarme eine Person an einem Ort bekommt (leer: alle). */
 export const ALARM_FOR = { '': 'alle Alarme', schnee: 'nur Schnee (Räumen)', glaette: 'nur Glätte (Streuen)' }
 
@@ -578,9 +601,12 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     ...whatsappNumbers(a.officeSms).map((sms) => ({ name: 'Büro', sms })),
     ...whatsappNumbers(a.officeWhatsapp).map((whatsapp) => ({ name: 'Büro', whatsapp })),
   ]
-  const orte = (locations || [])
+  // ausgeschaltet (Häkchen „Schnee-Alarm ein“ weg): keine Orte, der Server weckt niemanden mehr (Fahrer-Links bleiben)
+  const off = alarm?.enabled === false
+  const orte = (off ? [] : locations || [])
     .map((loc) => ({ loc, set: alarmPlace(a, loc, objects, locations) }))
-    .filter(({ set }) => set.active)
+    // ein Ort ohne angehakte Lage weckt nie: wie ausgeschaltet
+    .filter(({ set }) => set.active && !noTypes(set))
     .map(({ loc, set }) => ({
       name: loc.name,
       lat: Number(loc.lat),
