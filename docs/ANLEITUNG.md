@@ -2,13 +2,13 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 432 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 433 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (32)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (33)
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
@@ -939,6 +939,25 @@ Die QR-Zeiterfassung ist anfangs aus. Du schaltest sie im Dialog „Plan am Hand
 
 > Tipp: Vorher mit dem Betriebsrat bzw. schriftlich regeln und die Mitarbeitenden informieren.
 > Tipp: Für den Alarm „nicht eingestempelt“ braucht der Webspace einen Cronjob, die Adresse steht im Dialog.
+
+*Vollzugriff*
+
+### Stempeln am Tablet im Objekt (ohne eigenes Handy)
+
+*In der App: Mitarbeitende*
+
+Für Objekte, in denen die Leute kein eigenes Handy benutzen: Im Objekt hängt ein Tablet mit Internet. Die Person tippt ihre PIN, sieht ihren Namen und tippt „Kommen erfassen“ bzw. „Gehen erfassen“. Die Uhrzeit nimmt der Server. Die Stempelungen stehen wie die vom QR-Code in der Zeiterfassung, mit dem Vermerk „Tablet“.
+
+1. „Mitarbeitende“ → „Mehr ▾“ → „Plan am Handy“ öffnen und „Zeiterfassung ein“ anhaken.
+2. „Tablets und PINs …“ öffnen, das Objekt wählen und „Tablet hinzufügen“ klicken.
+3. „Speichern und übertragen“ klicken.
+4. „Blatt mit QR-Code“ drucken und mit der Kamera des Tablets scannen.
+5. Jeder Person ihre PIN schicken (WhatsApp oder E-Mail) oder sagen.
+
+> Tipp: PIN vergessen? Sie steht unter „Tablets und PINs“. „Neue PIN“ macht die alte ungültig.
+> Tipp: Fünf falsche PINs in zehn Minuten sperren das Tablet für fünf Minuten; das Büro-Handy bekommt einen Push.
+> Tipp: Tablet weg oder Link in falschen Händen: „Neuer Link“, danach gilt der alte nicht mehr.
+> Tipp: Das Tablet braucht Internet. Ohne Netz lässt sich nicht stempeln; die Zeit trägt dann das Büro nach.
 
 *Vollzugriff*
 

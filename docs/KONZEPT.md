@@ -109,7 +109,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Schlüsselverwaltung | MR.Clean, Profacilo, CleanManager, Miele | ✔ Schlüsselbuch: Ausgabe/Rückgabe mit Unterschrift und Quittung, Verlust, Austritt, Übergaben laut Plan, Regel „Schlüsselübergabe nötig“ |
 | Tourenplanung / Fahrzeiten | MR.Clean, Profacilo, Swept | ✔ Fahrten je Einsatz planbar (Dauer + Notiz), Fahrzeit-Matrix, Zeitlinie je Tag (noch ohne Karte) |
 | Prüfung nach österreichischem Arbeitsrecht | bei keinem Anbieter belegt | ✔ AZG, ARG, KJBG, Geringfügigkeit |
-| Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | umgesetzt mit QR-Code bzw. NFC (ohne Geofence) |
+| Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | umgesetzt mit QR-Code bzw. NFC (ohne Geofence); seit 25.11.2026 auch als Stempeluhr am Tablet mit PIN für Objekte ohne eigenes Handy |
 | Alarm bei Nichterscheinen | Swept | umgesetzt (Push ans Büro und an die Person) |
 | Qualitätskontrolle, Reklamationen | KleanApp, iQTrust, Miele, Janitorial Manager | umgesetzt (Objektkontrolle als Werkzeug, Reklamationen als Modul) |
 | Mitarbeiter-App: eigener Plan, Anträge, Krankmeldung | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |

@@ -22,7 +22,7 @@ import { evaluateCandidate } from './scheduler.js'
 import { objectInfo } from './sprachen.js'
 
 export const REQUEST_TYPES = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand']
-export const PORTAL_DEFAULTS = { enabled: false, exchange: true, timeclock: false, alarmMin: 20, key: '', cronKey: '', codes: {}, topics: {}, oldHashes: {}, objectTokens: {}, officeTopic: '', officeEmails: '', sender: '' }
+export const PORTAL_DEFAULTS = { enabled: false, exchange: true, timeclock: false, alarmMin: 20, key: '', cronKey: '', codes: {}, topics: {}, oldHashes: {}, objectTokens: {}, tablets: {}, pins: {}, officeTopic: '', officeEmails: '', sender: '' }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789' // ohne 0/O, 1/l/I
 
@@ -118,8 +118,11 @@ export function savePayload(entries) {
   return { personen: [...personen.values()], wochen }
 }
 
-/** Einstellungen für privat/mitarbeiter.json (nur, was der Webspace braucht). */
-export function portalFile({ portal, address, ntfy, employees = [], objects = [] }) {
+/**
+ * Einstellungen für privat/mitarbeiter.json (nur, was der Webspace braucht). tablet: Stempeluhr am Tablet
+ * (core/stempeluhr.js tabletFile, nur Hashwerte) oder null.
+ */
+export function portalFile({ portal, address, ntfy, employees = [], objects = [], tablet = null }) {
   const buero = []
   if (portal.officeTopic) buero.push({ name: 'Büro-Handy', ntfy: portal.officeTopic })
   for (const email of String(portal.officeEmails || '').split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) buero.push({ name: employees.find((e) => e.email === email)?.name || 'Büro', email })
@@ -128,6 +131,7 @@ export function portalFile({ portal, address, ntfy, employees = [], objects = []
   if (portal.timeclock) {
     const byId = new Map(objects.map((o) => [o.id, o]))
     file.zeiterfassung = { alarmMinuten: Math.max(0, Math.round(Number(portal.alarmMin) || 0)), pruefschluessel: portal.cronKey || '', objekte: Object.fromEntries(Object.entries(portal.objectTokens || {}).filter(([id]) => byId.has(id)).map(([id, token]) => [token, { id, name: byId.get(id).name }])) }
+    if (tablet) file.zeiterfassung.tablet = tablet
   }
   return file
 }

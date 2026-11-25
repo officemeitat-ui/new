@@ -2,7 +2,8 @@
 // dem Plan vergleichen.
 //
 // Gespeichert je Woche (Feld stamps, Schlüssel „Datum|zID“):
-//   { id, date, empId, name, objectId, objectName, instKey, plan, in, out, changed }
+//   { id, date, empId, name, objectId, objectName, instKey, plan, in, out, changed, via }
+// via = 'tablet': an der Stempeluhr am Tablet im Objekt gestempelt (core/stempeluhr.js), sonst am eigenen Handy.
 // date ist der Tag des Einsatzes laut Plan (bzw. der Tag des Kommens ohne Plan), in/out ISO-Zeiten.
 // Die Stunden im Wochenzettel bleiben die geplanten; die Ist-Zeiten zeigen Abweichungen zum Prüfen.
 
@@ -27,6 +28,8 @@ export function fromServer(r, index = new Map()) {
     in: iso(r.kommen),
     out: Number(r.gehen) > 0 ? iso(r.gehen) : null,
     changed: Number(r.geaendert) || Number(r.kommen),
+    // am Tablet im Objekt gestempelt (Stempeluhr mit PIN), sonst mit dem eigenen Handy am QR-Code
+    ...(r.quelle === 'tablet' ? { via: 'tablet' } : {}),
   }
 }
 

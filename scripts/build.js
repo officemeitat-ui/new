@@ -80,7 +80,8 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 // Texte der Seiten für Mitarbeitende in sechs Sprachen (mein-plan-texte.php, für mein-plan.php und wetter-alarm.php).
 const webspace = [
   ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
-  ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
+  // mein-plan-tablet.js: Zifferntasten und Uhr der Stempeluhr am Tablet (mein-plan.php?tablet=1)
+  ...(appConfig.staffPortal !== false ? ['mein-plan.php', 'mein-plan-tablet.js'] : []),
   // Kundenbereich (kunden.php): Link für Kunden; wetter-foto.js verkleinert die Fotos der Reklamation,
   // kunden-unterschrift.js nimmt die Unterschrift bei „Angebot online annehmen“ auf, aushang-texte.php: Texte des
   // Aushangs (QR) im Objekt auf Deutsch und Englisch, zusatz-texte.php: Texte von „Zusatzleistung anfragen“

@@ -31,3 +31,35 @@ export function qrPosterDocument({ objects = [], tokenOf, address, brand = {}, l
   }))
   return docShell(content.length ? content : [{ text: 'Keine Objekte.' }], { brand, colors, createdAt, title: 'QR-Aushänge Zeiterfassung' })
 }
+
+/**
+ * Blatt zum Einrichten einer Stempeluhr am Tablet (core/stempeluhr.js): QR-Code mit dem Einrichtungs-Link für die
+ * Kamera des Tablets und die Schritte. Der Link wirkt wie ein Passwort: nicht aufhängen, nach dem Einrichten vernichten.
+ */
+export function tabletSheetDocument({ object, link, brand = {}, logo = null, createdAt = new Date() }) {
+  const colors = inkColors(brand)
+  const content = [
+    {
+      stack: [
+        logo ? (logo.svg ? { svg: logo.svg, width: 160 } : { image: logo.image, fit: [170, 70] }) : { text: brand.name || '', style: 'brand' },
+        { text: 'Stempeluhr am Tablet einrichten', fontSize: 26, bold: true, color: colors.ink, margin: [0, 26, 0, 6] },
+        { text: object?.name || '', fontSize: 20, bold: true },
+        object?.address ? { text: object.address, fontSize: 12, color: colors.grey, margin: [0, 3, 0, 0] } : { text: '' },
+        { qr: link, fit: 250, alignment: 'center', margin: [0, 28, 0, 28] },
+        {
+          ol: [
+            'Das Tablet mit dem Internet verbinden (WLAN oder SIM-Karte).',
+            'Mit der Kamera des Tablets diesen Code scannen und den Link öffnen. Es erscheint die Stempeluhr mit dem Namen des Objekts; das Tablet merkt sich die Einrichtung.',
+            'Im Menü des Browsers „Zum Startbildschirm hinzufügen“ wählen und die Stempeluhr von dort öffnen.',
+            'Ladegerät anstecken und die Seite anheften (Android: „App anheften“, iPad: „Geführter Zugriff“), damit niemand sie versehentlich schließt.',
+            'Zur Probe die eigene PIN eintippen und „Abbrechen“ wählen.',
+          ],
+          fontSize: 12,
+          lineHeight: 1.35,
+        },
+        { text: 'Dieses Blatt nicht im Objekt aufhängen und nicht weitergeben: Mit dem Code lässt sich eine Stempeluhr einrichten. Nach dem Einrichten vernichten. Im Zweifel in der App unter „Plan am Handy“ → „Tablets und PINs“ einen neuen Link erzeugen.', fontSize: 10, color: colors.grey, margin: [0, 18, 0, 0] },
+      ],
+    },
+  ]
+  return docShell(content, { brand, colors, createdAt, title: 'Stempeluhr am Tablet einrichten' })
+}

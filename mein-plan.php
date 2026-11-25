@@ -20,6 +20,13 @@
 // (aktion=pruefen) meldet dem Büro, wer laut Plan seit einigen Minuten im Dienst sein sollte und
 // sich nicht eingestempelt hat (nur bei Personen, die schon einmal gestempelt haben).
 //
+// Stempeluhr am Tablet (ohne eigenes Handy): Im Objekt hängt ein Tablet. Das Büro öffnet dort einmal den Einrichtungs-Link
+// (mein-plan.php?tablet=CODE); das Gerät merkt sich den Code (Cookie), danach genügt mein-plan.php?tablet=1. Die Person tippt
+// ihre PIN, sieht ihren Namen und tippt „Kommen“ bzw. „Gehen“ (Uhrzeit des Servers, dieselben Stempelungen wie mit dem
+// QR-Code, Feld quelle = tablet). Am Webspace liegen nur Hashwerte der Codes und PINs (zeiterfassung.tablet). Nach
+// TABLET_FEHLER falschen PINs in 10 Minuten ist das Tablet gesperrt (5 Minuten, am selben Tag jedes Mal doppelt so lang),
+// das Büro bekommt einen Push. Zifferntasten, Uhr und „zurück zum PIN-Feld“ macht mein-plan-tablet.js.
+//
 // Material fehlt? (aktion=material): Die Person wählt eines ihrer Objekte laut Plan und schreibt,
 // was fehlt. Das Büro bekommt einen Push; die App übernimmt die Meldung als Anforderung ins Lager.
 // Gerät kaputt? (aktion=geraet): ebenso mit Objekt, Gerät (Nummer vom QR-Etikett oder Bezeichnung) und was kaputt
@@ -61,6 +68,11 @@ require __DIR__ . '/wetter-lib.php';
 require __DIR__ . '/webspace-lib.php';
 
 const COOKIE = 'mein_plan';
+const TABLET_COOKIE = 'mein_plan_tablet';
+const TABLET_FEHLER = 5;     // so viele falsche PINs …
+const TABLET_FENSTER = 600;  // … in 10 Minuten sperren das Tablet
+const TABLET_SPERRE = 300;   // 5 Minuten; am selben Tag jedes Mal doppelt so lang, höchstens 4 Stunden
+const TABLET_TICKET = 50;    // Sekunden für „Kommen“/„Gehen“ nach der PIN: kürzer als die Minute, in der zweimal Tippen einmal zählt
 const ARTEN = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand'];
 const STATUS_TEXT = ['offen' => 'offen', 'genehmigt' => 'genehmigt', 'abgelehnt' => 'abgelehnt', 'erledigt' => 'eingetragen'];
 const ABWESENHEITEN = 'Urlaub|Krankenstand|Zeitausgleich|Pflegefreistellung|Sonstiges';
@@ -502,6 +514,140 @@ function passender_einsatz(array $person, string $objektId): ?array
         }
     }
     return $best;
+}
+
+/**
+ * Kommen bzw. Gehen einer Person an einem Objekt erfassen (QR-Code am Handy oder Tablet im Objekt), mit der Uhrzeit des
+ * Servers: Gibt es an diesem Objekt eine offene Stempelung der letzten 16 Stunden, ist es „Gehen“, sonst „Kommen“ (mit dem
+ * laut Plan passenden Einsatz). Liefert 'kommen', 'gehen', 'doppelt' (zweimal in einer Minute) oder null (nicht gespeichert).
+ */
+function stempeln(string $hash, array $person, array $obj, string $quelle = ''): ?string
+{
+    return zeiten(function (array &$l) use ($hash, $person, $obj, $quelle) {
+        $offen = null;
+        foreach ($l as $i => $r) {
+            if ($r['hash'] !== $hash || $r['objektId'] !== $obj['id'] || (int) $r['kommen'] < jetzt() - 16 * 3600) {
+                continue;
+            }
+            if (max((int) $r['kommen'], (int) ($r['gehen'] ?? 0)) > jetzt() - 60) {
+                return 'doppelt'; // zweimal getippt
+            }
+            if (empty($r['gehen'])) {
+                $offen = $i;
+            }
+        }
+        if ($offen !== null) {
+            $l[$offen]['gehen'] = jetzt();
+            $l[$offen]['geaendert'] = jetzt();
+            if ($quelle !== '') {
+                $l[$offen]['quelle'] = $quelle;
+            }
+            return 'gehen';
+        }
+        $x = passender_einsatz($person, $obj['id']);
+        $l[] = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'einsatz' => $x['id'] ?? '', 'plan' => $x['zeit'] ?? '', 'datum' => $x['datum'] ?? heute(), 'kommen' => jetzt(), 'gehen' => null, 'geaendert' => jetzt()]
+            + ($quelle !== '' ? ['quelle' => $quelle] : []);
+        return 'kommen';
+    });
+}
+
+/** Letzte Stempelung der Person an diesem Objekt (16 Stunden), sonst null. */
+function letzte_stempelung(string $hash, string $objektId): ?array
+{
+    $letzte = null;
+    foreach (json_lesen(speicher() . '/zeiten.json') as $r) {
+        if ($r['hash'] === $hash && $r['objektId'] === $objektId && (int) $r['kommen'] > jetzt() - 16 * 3600 && (!$letzte || $r['kommen'] > $letzte['kommen'])) {
+            $letzte = $r;
+        }
+    }
+    return $letzte;
+}
+
+// ---------------------------------------------------------------- Stempeluhr am Tablet (ohne eigenes Handy)
+
+/** Tablets und PINs aus den Einstellungen: { pinLaenge, geraete: { Hash des Codes: { id, name } }, pins: { Hash der PIN: { hash, name } } }. */
+function tablet_einstellungen(?array $e): ?array
+{
+    $t = zeiterfassung($e)['tablet'] ?? null;
+    return is_array($t) && is_array($t['geraete'] ?? null) && is_array($t['pins'] ?? null) ? $t : null;
+}
+
+/** Hashwert einer PIN, wie ihn die App schickt: SHA-256 über „Schlüssel:PIN“ (die PIN selbst liegt nicht am Webspace). */
+function tablet_pin_hash(array $e, string $pin): string
+{
+    return hash('sha256', $e['schluessel'] . ':' . $pin);
+}
+
+/** Name zur Person laut PIN-Liste (null: die Person hat keine PIN mehr). */
+function tablet_name(array $tb, string $hash): ?string
+{
+    foreach ($tb['pins'] as $p) {
+        if (is_array($p) && ($p['hash'] ?? '') === $hash) {
+            return (string) ($p['name'] ?? '');
+        }
+    }
+    return null;
+}
+
+/**
+ * Stand der Tablets gesperrt ändern (wie die Stempelungen): { Hash des Codes: { fehl: [Zeitpunkte falscher PINs],
+ * gesperrt (bis), sperren: [Zeitpunkte der Sperren, 24 h], gemeldet, gesehen } }. Null: Ordner nicht beschreibbar.
+ */
+function tablet_stand(callable $fn)
+{
+    $h = @fopen(speicher() . '/tablet.json', 'c+');
+    if (!$h) {
+        return null;
+    }
+    flock($h, LOCK_EX);
+    $roh = (string) stream_get_contents($h);
+    $stand = json_decode($roh, true);
+    $stand = is_array($stand) ? $stand : [];
+    $ergebnis = $fn($stand);
+    $neu = json_encode($stand, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $ok = true;
+    if ($neu !== $roh) {
+        $ok = ftruncate($h, 0) && rewind($h) && fwrite($h, $neu) !== false && fflush($h);
+    }
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ok ? $ergebnis : null;
+}
+
+/** Signierter Wert (HMAC mit dem Schlüssel der App) für die Schritte am Tablet: Daten, Punkt, Signatur. */
+function tablet_siegel(array $e, array $daten): string
+{
+    $roh = rtrim(strtr(base64_encode((string) json_encode($daten)), '+/', '-_'), '=');
+    return $roh . '.' . hash_hmac('sha256', $roh, 'tablet:' . $e['schluessel']);
+}
+
+/** Signierten Wert prüfen: die Daten, oder null (nicht von uns, falsche Art oder abgelaufen). */
+function tablet_siegel_lesen(array $e, string $wert, string $art): ?array
+{
+    [$roh, $sig] = array_pad(explode('.', $wert, 2), 2, '');
+    if ($roh === '' || strlen($wert) > 600 || !hash_equals(hash_hmac('sha256', $roh, 'tablet:' . $e['schluessel']), $sig)) {
+        return null;
+    }
+    $d = json_decode((string) base64_decode(strtr($roh, '-_', '+/')), true);
+    return is_array($d) && ($d['a'] ?? '') === $art && (int) ($d['bis'] ?? 0) >= jetzt() ? $d : null;
+}
+
+/** Für die App: je Tablet das Objekt, wann es sich zuletzt gemeldet hat und ob es gerade gesperrt ist (ohne Codes). */
+function tablet_uebersicht(?array $e): array
+{
+    $tb = tablet_einstellungen($e);
+    if (!$tb) {
+        return [];
+    }
+    $stand = json_lesen(speicher() . '/tablet.json');
+    $out = [];
+    foreach ($tb['geraete'] as $gh => $g) {
+        if (is_array($g)) {
+            $bis = (int) ($stand[$gh]['gesperrt'] ?? 0);
+            $out[] = ['objektId' => (string) ($g['id'] ?? ''), 'gesehen' => (int) ($stand[$gh]['gesehen'] ?? 0), 'gesperrt' => $bis > jetzt() ? $bis : 0];
+        }
+    }
+    return $out;
 }
 
 /**
@@ -1247,7 +1393,7 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
 
     if ($aktion === 'zeiten') {
         $seit = (int) ($_GET['seit'] ?? 0);
-        json_ausgabe(200, ['zeiten' => array_values(array_filter(json_lesen(speicher() . '/zeiten.json'), fn ($r) => (int) ($r['geaendert'] ?? 0) >= $seit)), 'jetzt' => jetzt()]);
+        json_ausgabe(200, ['zeiten' => array_values(array_filter(json_lesen(speicher() . '/zeiten.json'), fn ($r) => (int) ($r['geaendert'] ?? 0) >= $seit)), 'tablets' => tablet_uebersicht($e), 'jetzt' => jetzt()]);
     }
 
     // Checklisten: geänderte Stände seit einem Zeitpunkt (dabei verwaiste Fotos aufräumen) und die nach Ende noch nicht
@@ -1544,6 +1690,192 @@ if (!$e) {
     html_seite('<h1>' . th('titel') . '</h1><p>' . th('nicht_eingerichtet') . '</p>', 503, '', t('titel'));
     exit;
 }
+// ---------------------------------------------------------------- Stempeluhr am Tablet (mein-plan.php?tablet=…)
+
+if (isset($_GET['tablet'])) {
+    $wert = is_string($_GET['tablet']) ? $_GET['tablet'] : '';
+    $start = 'mein-plan.php?tablet=1';
+    sprache_waehlen([], true); // Sprache des Geräts (Wahl oben auf der Seite), sonst die des Browsers
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Referrer-Policy: no-referrer');
+    $tb = tablet_einstellungen($e);
+    $keks = ['path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax'];
+    // Einrichten: Link mit Code einmal am Tablet öffnen, das Gerät merkt ihn sich
+    if (preg_match('/^[A-Za-z0-9]{16,40}$/', $wert)) {
+        if (!$tb || !is_array($tb['geraete'][hash('sha256', $wert)] ?? null)) {
+            html_seite('<h1>' . th('tb_titel') . '</h1><p>' . th('tb_ungueltig') . '</p>', 404, '', t('tb_titel'));
+            exit;
+        }
+        setcookie(TABLET_COOKIE, $wert, ['expires' => jetzt() + 400 * 86400] + $keks);
+        header('Location: ' . $start, true, 303);
+        exit;
+    }
+    $tcode = (string) ($_COOKIE[TABLET_COOKIE] ?? '');
+    $gh = preg_match('/^[A-Za-z0-9]{16,40}$/', $tcode) ? hash('sha256', $tcode) : '';
+    $geraet = $gh !== '' && $tb ? ($tb['geraete'][$gh] ?? null) : null;
+    if (!is_array($geraet) || !is_string($geraet['id'] ?? null) || $geraet['id'] === '') {
+        html_seite('<h1>' . th('tb_titel') . '</h1><p>' . th($gh !== '' ? 'tb_ungueltig' : 'tb_unbekannt') . '</p>', 403, '', t('tb_titel'));
+        exit;
+    }
+    $obj = ['id' => $geraet['id'], 'name' => (string) ($geraet['name'] ?? '')];
+    $um = fn (int $ts): string => $h(t('uhrzeit', ['zeit' => uhr($ts)]));
+    $stil = '<style>main{max-width:26rem}.tb-uhr{font-size:2.6rem;font-weight:700;color:#13232f;margin:.1rem 0 .4rem;font-variant-numeric:tabular-nums}.tb-name{font-size:1.5rem;font-weight:700;color:#13232f;margin:.3rem 0}'
+        . '.tb-punkte{display:none;font-size:2.2rem;letter-spacing:.6rem;text-align:center;min-height:3rem;margin:.3rem 0;color:#13232f}.tb-tasten{display:none;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.4rem}'
+        . '.tb-js .tb-punkte{display:block}.tb-js .tb-tasten{display:grid}.tb-js .tb-ohne{display:none}.tb-tasten button{margin:0;min-height:4.2rem;padding:.4rem;font-size:1.7rem;background:#fff;color:#13232f;border:1px solid #c9d6df;touch-action:manipulation}'
+        . '.tb-tasten button:active{background:#dfe9ef}.tb-tasten button.tb-klein{font-size:1.05rem}.tb-tasten button.tb-weiter{background:' . marke()['farbe'] . ';color:#fff;border-color:transparent}.tb-warten{opacity:.5;pointer-events:none}'
+        . 'input[type=password]{font:inherit;font-size:1.6rem;width:100%;box-sizing:border-box;padding:.6rem;border:1px solid #c9d6df;border-radius:8px;text-align:center;letter-spacing:.4rem}'
+        . 'button.tb-gross{font-size:1.5rem;padding:1.3rem}a.tb-zweit{display:block;text-align:center;margin-top:1rem;padding:.9rem;border:1px solid #c9d6df;border-radius:8px;color:#13232f;text-decoration:none;font-weight:600}'
+        . '.tb-haken{font-size:3.2rem;line-height:1;color:#4e7a1e;margin:.2rem 0}</style>';
+    // Seite der Stempeluhr: $zurueck Sekunden ohne Eingabe, dann wieder das PIN-Feld (mein-plan-tablet.js)
+    $seite = function (string $inhalt, int $status = 200, int $zurueck = 0) use ($stil, $start, $h): void {
+        html_seite($stil . '<div id="tb" data-start="' . $h($start) . '"' . ($zurueck > 0 ? ' data-zurueck="' . $zurueck . '"' : '') . '>' . $inhalt . '</div>', $status, 'mein-plan-tablet.js', t('tb_titel'));
+        exit;
+    };
+    $sprache_der_person = function (array $p): void {
+        if (sprache_gueltig($p['spracheWahl'] ?? null) || sprache_gueltig($p['sprache'] ?? null)) {
+            sprache(sprache_von($p));
+        }
+    };
+
+    // PIN geprüft: Name zeigen, „Kommen“ bzw. „Gehen“ anbieten. Falsche PINs zählen je Tablet (auch eine richtige setzt
+    // den Zähler nicht zurück, sonst ließe sich mit der eigenen PIN beliebig weiterraten).
+    if ($aktion === 'pin' && $methode === 'POST') {
+        if (fremde_herkunft()) {
+            html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('tb_titel'));
+            exit;
+        }
+        $pin = is_string($_POST['pin'] ?? null) ? (string) preg_replace('/\D/', '', $_POST['pin']) : '';
+        $treffer = strlen($pin) >= 4 && strlen($pin) <= 8 ? ($tb['pins'][tablet_pin_hash($e, $pin)] ?? null) : null;
+        $ph = is_array($treffer) && preg_match('/^[a-f0-9]{64}$/', (string) ($treffer['hash'] ?? '')) ? (string) $treffer['hash'] : '';
+        $stand = tablet_stand(function (array &$s) use ($gh, $ph) {
+            $g = (array) ($s[$gh] ?? []);
+            if ((int) ($g['gesperrt'] ?? 0) > jetzt()) {
+                return ['gesperrt', false, 0];
+            }
+            if ($ph !== '') {
+                return ['ok', false, 0];
+            }
+            $g['fehl'] = array_values(array_filter((array) ($g['fehl'] ?? []), fn ($t) => (int) $t > jetzt() - TABLET_FENSTER));
+            $g['fehl'][] = jetzt();
+            $ergebnis = ['falsch', false, 0];
+            if (count($g['fehl']) >= TABLET_FEHLER) {
+                $g['sperren'] = array_values(array_filter((array) ($g['sperren'] ?? []), fn ($t) => (int) $t > jetzt() - 86400));
+                $dauer = (int) min(TABLET_SPERRE * 2 ** count($g['sperren']), 4 * 3600);
+                $g['sperren'][] = jetzt();
+                $g['gesperrt'] = jetzt() + $dauer;
+                $g['fehl'] = [];
+                $melden = (int) ($g['gemeldet'] ?? 0) < jetzt() - 3600; // dem Büro höchstens einmal je Stunde
+                if ($melden) {
+                    $g['gemeldet'] = jetzt();
+                }
+                $ergebnis = ['gesperrt', $melden, $dauer];
+            }
+            $s[$gh] = $g;
+            return $ergebnis;
+        });
+        if ($stand === null) {
+            $seite('<h1>' . th('tb_titel') . '</h1><p class="fehler">' . th('nicht_gespeichert') . '</p><a class="tb-zweit" href="' . $h($start) . '">' . th('tb_abbrechen') . '</a>', 500, 20);
+        }
+        if ($stand[1]) {
+            foreach ((array) ($e['buero'] ?? []) as $b) {
+                if (!empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => 'Stempeluhr ' . $obj['name'] . ': mehrfach falsche PIN', 'message' => 'Das Tablet ist für ' . intdiv((int) $stand[2], 60) . " Minuten gesperrt.\nPINs stehen in der App unter „Plan am Handy“ → „Tablets und PINs“.", 'priority' => 4, 'tags' => ['warning'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/#zeiten']);
+                }
+            }
+        }
+        if ($stand[0] !== 'ok') {
+            header('Location: ' . $start . '&f=' . ($stand[0] === 'gesperrt' ? 'gesperrt' : 'pin'), true, 303);
+            exit;
+        }
+        $p = json_lesen(person_datei($ph));
+        $sprache_der_person($p);
+        $name = (string) (($p['name'] ?? '') ?: ($treffer['name'] ?? ''));
+        $letzte = letzte_stempelung($ph, $obj['id']);
+        $offen = $letzte && empty($letzte['gehen']);
+        $x = $offen ? null : passender_einsatz($p, $obj['id']);
+        $lage = $offen
+            ? '<p>' . ($letzte['plan'] ? th('eingestempelt_seit_plan', ['uhr' => '<b>' . $um((int) $letzte['kommen']) . '</b>', 'plan' => $h((string) $letzte['plan'])]) : th('eingestempelt_seit', ['uhr' => '<b>' . $um((int) $letzte['kommen']) . '</b>'])) . '</p>'
+            : ($x ? '<p>' . th('laut_plan', ['zeit' => '<b>' . $h((string) $x['zeit']) . '</b>']) . (!empty($x['leistung']) ? ' · ' . $h((string) $x['leistung']) : '') . '</p>' : '<p class="leise">' . th('kein_einsatz_hier') . '</p>');
+        $ticket = tablet_siegel($e, ['a' => 'ticket', 'g' => $gh, 'h' => $ph, 'bis' => jetzt() + TABLET_TICKET]);
+        $seite('<h1>' . th('tb_titel') . '</h1><p class="tb-name">' . th('tb_hallo', ['name' => $h($name)]) . '</p><p><b>' . $h($obj['name']) . '</b></p>' . $lage
+            . '<p class="leise">' . th('jetzt', ['uhr' => $um(jetzt())]) . '</p>'
+            . '<form method="post" action="' . $h($start) . '&amp;aktion=stempeln"><input type="hidden" name="ticket" value="' . $h($ticket) . '"><button type="submit" class="tb-gross">' . th($offen ? 'gehen_knopf' : 'kommen_knopf') . '</button></form>'
+            . '<a class="tb-zweit" href="' . $h($start) . '">' . th('tb_abbrechen') . '</a>', 200, 30);
+    }
+
+    // „Kommen“ bzw. „Gehen“ mit dem Ticket aus dem Schritt davor (gilt TABLET_TICKET Sekunden, nur an diesem Tablet)
+    if ($aktion === 'stempeln' && $methode === 'POST') {
+        if (fremde_herkunft()) {
+            html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('tb_titel'));
+            exit;
+        }
+        $tk = is_string($_POST['ticket'] ?? null) ? tablet_siegel_lesen($e, $_POST['ticket'], 'ticket') : null;
+        $ph = $tk && ($tk['g'] ?? '') === $gh && preg_match('/^[a-f0-9]{64}$/', (string) ($tk['h'] ?? '')) ? (string) $tk['h'] : '';
+        $name = $ph !== '' ? tablet_name($tb, $ph) : null; // im Büro inzwischen ohne PIN: gilt nicht mehr
+        if ($name === null) {
+            header('Location: ' . $start . '&f=zeit', true, 303);
+            exit;
+        }
+        $p = json_lesen(person_datei($ph));
+        $sprache_der_person($p);
+        $ergebnis = stempeln($ph, ['name' => (string) (($p['name'] ?? '') ?: $name)] + $p, $obj, 'tablet');
+        if ($ergebnis === null) {
+            $seite('<h1>' . th('tb_titel') . '</h1><p class="fehler">' . th('nicht_gespeichert') . '</p><a class="tb-zweit" href="' . $h($start) . '">' . th('tb_abbrechen') . '</a>', 500, 20);
+        }
+        if ($p && empty($p['stempelt'])) {
+            $p['stempelt'] = jetzt(); // ab jetzt gilt der Alarm bei Nichterscheinen
+            json_schreiben(person_datei($ph), $p);
+        }
+        $letzte = letzte_stempelung($ph, $obj['id']);
+        header('Location: ' . $start . '&erfasst=' . rawurlencode(tablet_siegel($e, ['a' => 'erfasst', 'g' => $gh, 'h' => $ph, 'e' => $ergebnis, 'k' => (int) ($letzte['kommen'] ?? 0), 'x' => (int) ($letzte['gehen'] ?? 0), 'bis' => jetzt() + 120])), true, 303);
+        exit;
+    }
+
+    // Bestätigung nach dem Stempeln (signiert, 2 Minuten): Name, Uhrzeit; nach ein paar Sekunden wieder das PIN-Feld
+    $erf = is_string($_GET['erfasst'] ?? null) ? tablet_siegel_lesen($e, $_GET['erfasst'], 'erfasst') : null;
+    if ($erf && ($erf['g'] ?? '') === $gh && preg_match('/^[a-f0-9]{64}$/', (string) ($erf['h'] ?? ''))) {
+        $p = json_lesen(person_datei((string) $erf['h']));
+        $sprache_der_person($p);
+        $name = (string) (($p['name'] ?? '') ?: (tablet_name($tb, (string) $erf['h']) ?? ''));
+        $text = match ((string) ($erf['e'] ?? '')) {
+            'kommen' => th('kommen_erfasst', ['uhr' => $um((int) $erf['k'])]),
+            'gehen' => th('gehen_erfasst', ['uhr' => $um((int) $erf['x']), 'dauer' => $h(dauer((int) $erf['x'] - (int) $erf['k']))]),
+            default => th('schon_erfasst'),
+        };
+        $seite('<p class="tb-haken" aria-hidden="true">✓</p><p class="tb-name">' . $h($name) . '</p><p class="ok">' . $text . '</p><p class="leise">' . $h($obj['name']) . '</p><a class="knopf" href="' . $h($start) . '">' . th('tb_fertig') . '</a>', 200, 6);
+    }
+
+    // PIN-Feld. Das Tablet meldet sich dabei (höchstens einmal je Minute vermerkt), der Code am Gerät gilt wieder 400 Tage.
+    $bis = tablet_stand(function (array &$s) use ($gh, $tb) {
+        $s = array_intersect_key($s, $tb['geraete']); // entfernte Tablets vergessen
+        if ((int) ($s[$gh]['gesehen'] ?? 0) < jetzt() - 60) {
+            $s[$gh] = ['gesehen' => jetzt()] + (array) ($s[$gh] ?? []);
+        }
+        return (int) ($s[$gh]['gesperrt'] ?? 0);
+    });
+    setcookie(TABLET_COOKIE, $tcode, ['expires' => jetzt() + 400 * 86400] + $keks);
+    $kopf = sprachwahl_html($start) . '<h1>' . th('tb_titel') . '</h1><p><b>' . $h($obj['name']) . '</b></p><p class="tb-uhr" id="tb-uhr" data-ts="' . jetzt() . '">' . $h(uhr(jetzt())) . '</p>';
+    if ((int) $bis > jetzt()) {
+        $rest = (int) $bis - jetzt();
+        $seite($kopf . '<p class="fehler" role="alert">' . th('tb_gesperrt', ['min' => (string) max(1, (int) ceil($rest / 60))]) . '</p>', 200, min($rest + 1, 600));
+    }
+    $f = (string) ($_GET['f'] ?? '');
+    $meldung = $f === 'pin' ? '<p class="fehler" role="alert">' . th('tb_falsch') . '</p>' : ($f === 'zeit' ? '<p class="fehler" role="alert">' . th('tb_abgelaufen') . '</p>' : '');
+    $laenge = min(8, max(4, (int) ($tb['pinLaenge'] ?? 4)));
+    $tasten = '';
+    foreach ([1, 2, 3, 4, 5, 6, 7, 8, 9] as $z) {
+        $tasten .= '<button type="button" data-z="' . $z . '">' . $z . '</button>';
+    }
+    $tasten .= '<button type="button" class="tb-klein" data-weg="1">' . th('tb_loeschen') . '</button><button type="button" data-z="0">0</button><button type="submit" class="tb-klein tb-weiter">' . th('tb_weiter') . '</button>';
+    $seite($kopf . $meldung
+        . '<form method="post" action="' . $h($start) . '&amp;aktion=pin" id="tb-form" autocomplete="off" data-laenge="' . $laenge . '">'
+        . '<label for="tb-pin">' . th('tb_pin') . '</label>'
+        . '<input type="password" id="tb-pin" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="off" required>'
+        . '<p class="tb-punkte" id="tb-punkte" aria-live="polite"></p><div class="tb-tasten">' . $tasten . '</div>'
+        . '<button type="submit" class="tb-ohne">' . th('tb_weiter') . '</button></form>'
+        . '<p class="leise" style="margin-top:1.2rem;font-size:.9rem">' . th('tb_hinweis') . '</p>', 200, 0);
+}
+
 $code = (string) ($_GET['p'] ?? $_POST['p'] ?? $_COOKIE[COOKIE] ?? '');
 if ($aktion === 'vergessen') {
     sprache_waehlen([], true);
@@ -1662,28 +1994,7 @@ if ($token !== '') {
             html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel_zeit'));
             exit;
         }
-        $ergebnis = zeiten(function (array &$l) use ($hash, $person, $obj) {
-            $offen = null;
-            foreach ($l as $i => $r) {
-                if ($r['hash'] !== $hash || $r['objektId'] !== $obj['id'] || (int) $r['kommen'] < jetzt() - 16 * 3600) {
-                    continue;
-                }
-                if (max((int) $r['kommen'], (int) ($r['gehen'] ?? 0)) > jetzt() - 60) {
-                    return 'doppelt'; // zweimal getippt
-                }
-                if (empty($r['gehen'])) {
-                    $offen = $i;
-                }
-            }
-            if ($offen !== null) {
-                $l[$offen]['gehen'] = jetzt();
-                $l[$offen]['geaendert'] = jetzt();
-                return 'gehen';
-            }
-            $x = passender_einsatz($person, $obj['id']);
-            $l[] = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'einsatz' => $x['id'] ?? '', 'plan' => $x['zeit'] ?? '', 'datum' => $x['datum'] ?? heute(), 'kommen' => jetzt(), 'gehen' => null, 'geaendert' => jetzt()];
-            return 'kommen';
-        });
+        $ergebnis = stempeln($hash, $person, $obj);
         if ($ergebnis === null) {
             html_seite('<h1>' . th('titel_zeit') . '</h1><p class="fehler">' . th('nicht_gespeichert') . '</p>', 500, '', t('titel_zeit'));
             exit;
@@ -1696,12 +2007,7 @@ if ($token !== '') {
         exit;
     }
     // Stand: letzte Stempelung hier (16 h)
-    $letzte = null;
-    foreach (json_lesen(speicher() . '/zeiten.json') as $r) {
-        if ($r['hash'] === $hash && $r['objektId'] === $obj['id'] && (int) $r['kommen'] > jetzt() - 16 * 3600 && (!$letzte || $r['kommen'] > $letzte['kommen'])) {
-            $letzte = $r;
-        }
-    }
+    $letzte = letzte_stempelung($hash, (string) $obj['id']);
     $erfasst = (string) ($_GET['erfasst'] ?? '');
     $um = fn (int $ts): string => $h(t('uhrzeit', ['zeit' => uhr($ts)]));
     $info = '';

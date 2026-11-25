@@ -13,6 +13,10 @@
 // Sprache: Die Seite am Handy und die Push-Nachrichten kommen in der Sprache aus dem Stammblatt
 // (employees[].lang, beim Übertragen als personen[].sprache), ebenso die Nachricht mit dem Link.
 //
+// Stempeluhr am Tablet (core/stempeluhr.js): für Objekte ohne eigenes Handy. Je Objekt ein Code für das Tablet
+// (rules.portal.tablets), je Person eine PIN (rules.portal.pins); verwaltet auf der Unterseite „Tablets und PINs“
+// im Dialog. Der Webspace bekommt beides nur als Hashwert (mit „Speichern und übertragen“).
+//
 // Checkliste: Hat die Leistung Punkte (Objekte & Leistungen → Leistung bearbeiten), gehen sie je Einsatz mit; der
 // Stand vom Handy kommt mit den Stempelungen zurück (views/checkliste.js).
 
@@ -23,17 +27,20 @@ import { addDays, dayIndex, formatDate, mondayOf, todayISO } from '../core/dates
 import { PlanState } from '../core/plan.js'
 import { evaluateCandidate } from '../core/scheduler.js'
 import { langInfo, langOf, linkMessage } from '../core/sprachen.js'
+import { completePins, newPin, pinMessage, seenText, tabletFile, tabletLink } from '../core/stempeluhr.js'
 import { hashIndex, newCode, offeredBy, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
 import { blackoutsForPortal, requestCheck, vacationSettings } from '../core/urlaub.js'
+import { fileSafe } from '../core/filename.js'
 import { ALARM_DEFAULTS, viennaParts } from '../core/weather.js'
 import { syncHandyWishes, wishKey } from '../core/wuensche.js'
 import { addLog, app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
 import { addAbsence } from './modals/absence.js'
 import { portalNote } from './modals/publish.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
-import { accountAfterWeek } from './pdf.js'
+import { accountAfterWeek, loadLogo, pdfBlob } from './pdf.js'
 import { publishWeek } from './planning.js'
-import { downloadQrPosters } from './timeclock.js'
+import { tabletSheetDocument } from '../export/qr-pdf.js'
+import { downloadQrPosters, syncStamps, tabletStatus } from './timeclock.js'
 import { checked, download, esc, ICON, modalFrame, val } from './shared.js'
 import { waLink } from './whatsapp.js'
 
@@ -76,6 +83,19 @@ function withTimeclock(d) {
   d.objectTokens = { ...(d.objectTokens || {}) }
   for (const o of app.data.objects) d.objectTokens[o.id] ||= newCode().toUpperCase().slice(0, 12)
   d.cronKey ||= hex(16)
+  return withTablets(d)
+}
+
+/** Wer einen persönlichen Link hat und heute oder später beschäftigt ist (bekommt Plan, Link und PIN). */
+function linkPeople(d, today = todayISO()) {
+  return app.data.employees.filter((e) => d.codes?.[e.id] && (employedOn(e, today) || (e.entryDate && e.entryDate > today))).sort((a, b) => a.name.localeCompare(b.name, 'de'))
+}
+
+/** Stempeluhr am Tablet: Tablets gelöschter Objekte fallen weg; gibt es ein Tablet, hat jede Person mit Link eine PIN. */
+function withTablets(d) {
+  const ids = new Set(app.data.objects.map((o) => o.id))
+  d.tablets = Object.fromEntries(Object.entries(d.tablets || {}).filter(([id, code]) => ids.has(id) && code))
+  d.pins = Object.keys(d.tablets).length ? completePins(d.pins || {}, linkPeople(d).map((e) => e.id)) : { ...(d.pins || {}) }
   return d
 }
 
@@ -446,10 +466,56 @@ function readForm() {
 /** Nachricht mit dem Link in der Sprache der Person (Stammblatt): { subject, text }. */
 const messageFor = (emp, d) => linkMessage(langOf(emp), { name: firstName(emp.name), product: product(), link: personalLink(address(), d.codes[emp.id]), topic: d.topics[emp.id] || '' })
 
+/** Unterseite „Tablets und PINs“ im Dialog „Plan am Handy“ (derselbe Entwurf, gespeichert wird wie auf der Hauptseite). */
+function tabletsPage(d) {
+  const objects = [...app.data.objects].sort((a, b) => a.name.localeCompare(b.name, 'de'))
+  const free = objects.filter((o) => !d.tablets?.[o.id])
+  const status = new Map(tabletStatus().map((t) => [t.objektId, t]))
+  const rows = objects
+    .filter((o) => d.tablets?.[o.id])
+    .map((o) => {
+      const st = status.get(o.id)
+      const seen = seenText(st?.gesehen)
+      return `<tr><td>${esc(o.name)}</td>
+        <td class="actions"><button class="btn small" data-action="portal-copy" data-text="${esc(tabletLink(address(), d.tablets[o.id]))}">${ICON.copy} Einrichtungs-Link</button><button class="btn small" data-action="portal-tablet-sheet" data-object="${esc(o.id)}">${ICON.print} Blatt mit QR-Code</button></td>
+        <td><span class="pill ${seen.tone}">${esc(seen.text)}</span>${st?.gesperrt ? ' <span class="pill error" title="Mehrmals eine falsche PIN eingetippt; die Sperre endet von selbst">gesperrt</span>' : ''}</td>
+        <td class="actions"><button class="btn small" data-action="portal-tablet-new" data-object="${esc(o.id)}" title="Wenn das Tablet oder der Link in falsche Hände geraten ist: der alte Link gilt dann nicht mehr">Neuer Link</button><button class="btn small" data-action="portal-tablet-del" data-object="${esc(o.id)}">Entfernen</button></td></tr>`
+    })
+    .join('')
+  const people = Object.keys(d.tablets || {}).length ? linkPeople(d) : []
+  const pins = people
+    .map((e) => {
+      const { subject, text } = pinMessage(langOf(e), { name: firstName(e.name), pin: d.pins[e.id], product: product() })
+      const mail = e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}` : ''
+      return `<tr><td>${esc(e.name)}</td><td><code class="pt-pin">${esc(d.pins[e.id] || '')}</code></td>
+        <td class="actions">${waLink({ kind: 'tablet-pin', phone: e.phone, text })}${mail ? `<a class="btn small" href="${esc(mail)}">E-Mail</a>` : ''}<button class="btn small" data-action="portal-copy" data-text="${esc(d.pins[e.id] || '')}">${ICON.copy} Kopieren</button></td>
+        <td><button class="btn small" data-action="portal-pin-new" data-emp="${esc(e.id)}" title="Wenn jemand anderer die PIN kennt: die alte gilt nach dem Übertragen nicht mehr">Neue PIN</button></td></tr>`
+    })
+    .join('')
+  return modalFrame({
+    title: 'Stempeluhr am Tablet (Tablets und PINs)',
+    wide: true,
+    body: `<p class="note">Für Objekte, in denen die Leute kein eigenes Handy benutzen: Im Objekt hängt ein Tablet (oder ein altes Handy) mit Internet. Die Person tippt ihre PIN, sieht ihren Namen und tippt „Kommen erfassen“ bzw. „Gehen erfassen“. Die Uhrzeit nimmt der Server, die Stempelungen stehen wie die vom QR-Code in der Ansicht „Zeiterfassung“. Beides geht nebeneinander.</p>
+      <h3>Tablets</h3>
+      ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Objekt</th><th>Am Tablet öffnen</th><th>Zustand</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Noch kein Tablet eingerichtet.</p>'}
+      ${free.length ? `<div class="form-grid"><label class="field wide"><span>Objekt für ein neues Tablet</span><select id="pt-tablet-object"><option value="">Objekt wählen …</option>${free.map((o) => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select></label><div class="field"><span>&nbsp;</span><button class="btn" data-action="portal-tablet-add">${ICON.plus} Tablet hinzufügen</button></div></div>` : ''}
+      <ol class="note">
+        <li>Tablet hinzufügen, dann unten <strong>„Speichern und übertragen“</strong> (erst danach kennt der Webspace das Tablet und die PINs).</li>
+        <li>Am Tablet den Einrichtungs-Link einmal öffnen: am einfachsten das „Blatt mit QR-Code“ ausdrucken und mit der Kamera des Tablets scannen. Das Tablet merkt sich die Einrichtung.</li>
+        <li>Am Tablet im Menü des Browsers „Zum Startbildschirm hinzufügen“ wählen, das Ladegerät anstecken und die Seite anheften (Android: „App anheften“, iPad: „Geführter Zugriff“).</li>
+      </ol>
+      <p class="note">Der Einrichtungs-Link wirkt wie ein Passwort: nicht im Objekt aufhängen, nach dem Einrichten das Blatt vernichten. Nach fünf falschen PINs in zehn Minuten sperrt sich das Tablet für fünf Minuten (am selben Tag jedes Mal doppelt so lang), das Büro-Handy bekommt einen Push.</p>
+      <h3>PINs</h3>
+      ${pins ? `<p class="note">Jede Person mit persönlichem Link hat eine eigene PIN mit vier Ziffern; sie gilt an jedem Tablet. Die Nachricht kommt in der Sprache der Person. Wer die PIN vergessen hat, fragt im Büro nach. Nach Ein- und Austritten einmal „Speichern und übertragen“: Neue bekommen ihre PIN, die PIN von Ausgetretenen gilt dann nicht mehr.</p><div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>PIN</th><th>PIN schicken</th><th></th></tr></thead><tbody>${pins}</tbody></table></div>` : '<p class="muted">PINs entstehen mit dem ersten Tablet.</p>'}`,
+    foot: `<button class="btn" data-action="portal-page" data-page="">${ICON.left} Zurück zu „Plan am Handy“</button>
+      <div class="actions"><button class="btn" data-action="portal-save">Speichern</button><button class="btn primary" data-action="portal-save" data-send="1">Speichern und übertragen</button></div>`,
+  })
+}
+
 function portalModal() {
   const d = draft()
-  const today = todayISO()
-  const people = app.data.employees.filter((e) => d.codes[e.id] && (employedOn(e, today) || (e.entryDate && e.entryDate > today))).sort((a, b) => a.name.localeCompare(b.name, 'de'))
+  if (app.ui.modal.page === 'tablets' && d.timeclock) return tabletsPage(d)
+  const people = linkPeople(d)
   const rows = people
     .map((e) => {
       const { subject, text: msg } = messageFor(e, d)
@@ -478,6 +544,7 @@ function portalModal() {
       <p class="note">Der Alarm geht per Push ans Büro-Handy und an die Person, nur bei Personen, die schon einmal gestempelt haben, und höchstens einmal je Einsatz. Dafür am Webspace einen <strong>Cronjob alle 5 bis 10 Minuten</strong> (wie beim Schnee-Alarm): <code>php mein-plan.php pruefen</code> im Ordner der App oder diese Adresse aufrufen lassen:</p>
       <p><code class="wrap">${esc(cronUrl(d))}</code> ${d.cronKey ? `<button class="btn small" data-action="portal-copy" data-text="${esc(cronUrl(d))}">Adresse kopieren</button>` : ''}</p>
       <p><button class="btn" data-action="portal-qr">${ICON.print} QR-Aushänge (PDF)</button> <span class="muted">${Object.keys(d.objectTokens || {}).length} Objekte, je Objekt eine Seite</span></p>
+      <p><button class="btn" data-action="portal-page" data-page="tablets">Tablets und PINs …</button> <span class="muted">Stempeluhr am Tablet für Objekte ohne eigenes Handy: ${Object.keys(d.tablets || {}).length === 1 ? '1 Tablet' : `${Object.keys(d.tablets || {}).length} Tablets`}</span></p>
       <p class="note">Vorher mit dem Betriebsrat bzw. schriftlich regeln (Zeiterfassung ist ein Kontrollsystem) und die Mitarbeitenden informieren; siehe Rechtsprüfung. Kein GPS: der Code am Objekt zeigt, dass das Handy dort war.</p>` : ''}
       <h3>Anträge ans Büro</h3>
       <label class="check"><input type="checkbox" id="pt-office" ${d.officeTopic ? 'checked' : ''}><span>Büro-Handy bekommt neue Anträge und Krankmeldungen per Push${d.officeTopic ? `: Thema <code>${esc(d.officeTopic)}</code> <button class="btn small" data-action="portal-copy" data-text="${esc(d.officeTopic)}">kopieren</button>` : ''}</span></label>
@@ -507,7 +574,11 @@ function rejectModal(c, { id }) {
 
 registerModal('portal-reject', rejectModal, { module: 'planung' })
 
-const settingsFile = (p) => portalFile({ portal: p, address: address(), ntfy: ntfyServer(), employees: app.data.employees, objects: app.data.objects })
+/** Einstellungen für den Webspace; die Stempeluhr am Tablet (Hashwerte von Codes und PINs) nur mit Zeiterfassung. */
+async function settingsFile(p) {
+  const tablet = p.timeclock ? await tabletFile({ portal: p, employees: linkPeople(p), objects: app.data.objects }) : null
+  return portalFile({ portal: p, address: address(), ntfy: ntfyServer(), employees: app.data.employees, objects: app.data.objects, tablet })
+}
 
 registerActions(
   {
@@ -530,12 +601,70 @@ registerActions(
       // der Webspace muss die Codes kennen
       let note = ''
       try {
-        if (d.enabled) await call('einrichten', settingsFile(d))
+        if (d.enabled) await call('einrichten', await settingsFile(d))
       } catch (err) {
         note = ` Achtung, noch nicht übertragen: ${err.message}`
       }
       await downloadQrPosters(d)
       toast(`QR-Aushänge erstellt: ausdrucken und je Objekt aufhängen.${note}`)
+    },
+    'portal-page': (el) => {
+      readForm()
+      app.ui.modal.page = el.dataset.page || ''
+      renderModal()
+      if (app.ui.modal.page !== 'tablets') return
+      // Zustand der Tablets („aktiv“, „gesperrt“) kommt mit den Stempelungen; neu zeichnen nur, wenn er sich geändert hat
+      const before = JSON.stringify(tabletStatus())
+      syncStamps().then(() => app.ui.modal?.type === 'portal' && app.ui.modal.page === 'tablets' && JSON.stringify(tabletStatus()) !== before && renderModal(), () => {})
+    },
+    'portal-tablet-add': () => {
+      const d = draft()
+      const id = val('pt-tablet-object')
+      const obj = app.data.objects.find((o) => o.id === id)
+      if (!obj) return toast('Bitte zuerst das Objekt wählen, in dem das Tablet hängt.')
+      d.tablets = { ...(d.tablets || {}), [id]: newCode() }
+      withTablets(d)
+      renderModal()
+      toast(`Tablet für ${obj.name} angelegt: „Speichern und übertragen“, dann den Einrichtungs-Link am Tablet öffnen.`)
+    },
+    'portal-tablet-new': (el) => {
+      const d = draft()
+      const id = el.dataset.object
+      if (!d.tablets?.[id]) return
+      d.tablets = { ...d.tablets, [id]: newCode() }
+      renderModal()
+      toast('Neuer Einrichtungs-Link: nach „Speichern und übertragen“ gilt der alte nicht mehr. Den neuen Link am Tablet öffnen.')
+    },
+    'portal-tablet-del': (el) => {
+      const d = draft()
+      const name = app.data.objects.find((o) => o.id === el.dataset.object)?.name || 'Objekt'
+      d.tablets = Object.fromEntries(Object.entries(d.tablets || {}).filter(([id]) => id !== el.dataset.object))
+      renderModal()
+      toast(`Tablet für ${name} entfernt: nach „Speichern und übertragen“ lässt sich dort nicht mehr stempeln.`)
+    },
+    'portal-tablet-sheet': async (el) => {
+      const d = draft()
+      const obj = app.data.objects.find((o) => o.id === el.dataset.object)
+      if (!obj || !d.tablets?.[obj.id]) return
+      saveSettings({ ...d })
+      // der Webspace muss das Tablet kennen, bevor der Link geöffnet wird
+      let note = ''
+      try {
+        if (d.enabled) await call('einrichten', await settingsFile(d))
+      } catch (err) {
+        note = ` Achtung, noch nicht übertragen: ${err.message}`
+      }
+      const doc = tabletSheetDocument({ object: obj, link: tabletLink(address(), d.tablets[obj.id]), brand: app.config.brand, logo: await loadLogo().catch(() => null) })
+      download(`Stempeluhr_einrichten_${fileSafe(obj.name)}.pdf`, await pdfBlob(doc))
+      toast(`Blatt erstellt: mit der Kamera des Tablets scannen, danach vernichten.${note}`)
+    },
+    'portal-pin-new': (el) => {
+      const d = draft()
+      const id = el.dataset.emp
+      if (!d.pins?.[id]) return
+      d.pins = { ...d.pins, [id]: newPin(new Set(Object.values(d.pins))) }
+      renderModal()
+      toast(`Neue PIN für ${empById(id)?.name}: nach „Speichern und übertragen“ gilt die alte nicht mehr. Neue PIN schicken.`)
     },
     'portal-push': (el) => {
       const d = readForm()
@@ -555,9 +684,9 @@ registerActions(
       renderModal()
       toast(`Neuer Link für ${empById(id)?.name}: nach dem Speichern und Übertragen gilt der alte nicht mehr. Neuen Link schicken.`)
     },
-    'portal-download': () => {
+    'portal-download': async () => {
       const d = readForm()
-      download('mitarbeiter.json', new Blob([`${JSON.stringify(settingsFile(d), null, 2)}\n`], { type: 'application/json' }))
+      download('mitarbeiter.json', new Blob([`${JSON.stringify(await settingsFile(d), null, 2)}\n`], { type: 'application/json' }))
       saveSettings({ ...d })
       toast('Gespeichert und heruntergeladen: mitarbeiter.json per FTP in den Ordner privat/ der App laden.')
     },
@@ -569,7 +698,7 @@ registerActions(
       if (!el.dataset.send) return toast('Plan am Handy gespeichert. Für den Webspace „Speichern und übertragen“ oder die Einrichtungs-Datei hochladen.')
       if (!d.enabled) return toast('Plan am Handy ausgeschaltet.')
       try {
-        await call('einrichten', settingsFile(d))
+        await call('einrichten', await settingsFile(d))
         const r = await sendAll()
         toast(`Übertragen: Pläne für ${r.personen} ${r.personen === 1 ? 'Person' : 'Personen'}${r.angebote ? `, ${r.angebote === 1 ? '1 offener Einsatz' : `${r.angebote} offene Einsätze`} in der Börse` : ''}${r.benachrichtigt ? `, ${r.benachrichtigt} ${r.benachrichtigt === 1 ? 'Push-Nachricht' : 'Push-Nachrichten'}` : ''}.`)
         loadRequests({ force: true })

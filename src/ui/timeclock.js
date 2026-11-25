@@ -33,7 +33,10 @@ const STATUS_CLASS = { ok: 'ok', spaet: 'warning', frueh: 'warning', laenger: 'w
 
 // ---------------------------------------------------------------- Abruf vom Webspace
 
-const sync = { at: 0, running: false, since: 0, error: '', timer: null, checks: 0 }
+const sync = { at: 0, running: false, since: 0, error: '', timer: null, checks: 0, tablets: [] }
+
+/** Stempeluhren am Tablet laut Webspace (mit dem letzten Abruf): [{ objektId, gesehen, gesperrt }]. */
+export const tabletStatus = () => sync.tablets
 
 /**
  * Checkliste am Handy (views/checkliste.js, später geladen): sync({ force }) → Anzahl übernommener Stände,
@@ -65,6 +68,7 @@ async function pullStamps({ force }) {
     const dates = (json.zeiten || []).map((r) => r.datum).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '')).sort()
     if (dates.length) await ensureRange(dates[0], dates.at(-1))
     n = mergeStamps(stampsOf(), json.zeiten, index)
+    sync.tablets = Array.isArray(json.tablets) ? json.tablets : []
     sync.since = Math.max(since, Number(json.jetzt || 0) - 300)
     sync.error = ''
     if (n) {
@@ -152,6 +156,7 @@ function marks(st) {
   const out = []
   if (st.source === 'manuell') out.push(`<span class="pill info" title="${esc(`${reasonLabel(st.reason)}${st.by ? ` · ${st.by}` : ''}`)}">nachgetragen</span>`)
   if (st.changes?.length) out.push(`<span class="pill warning" title="${esc(st.changes.map((x) => `${reasonLabel(x.reason)}: vorher ${time(x.before.in)}–${time(x.before.out) || '…'}${x.by ? ` (${x.by})` : ''}`).join('\n'))}">korrigiert</span>`)
+  if (st.via === 'tablet') out.push('<span class="muted small" title="An der Stempeluhr am Tablet im Objekt gestempelt (mit PIN)">Tablet</span>')
   if (st.pause) out.push(`<span class="muted small">Pause ${st.pause} min</span>`)
   if (st.approved) out.push(`<span class="tc-ok" title="Freigegeben${st.approved.by ? ` von ${esc(st.approved.by)}` : ''}">${ICON.check}</span>`)
   return out.join(' ')
@@ -260,6 +265,7 @@ const CSV_COLUMNS = [
   ['Status', (r) => STATUS_TEXT[r.status]],
   ['Nachtrag/Korrektur', (r) => [r.stamp?.source === 'manuell' ? `nachgetragen: ${reasonLabel(r.stamp.reason)}` : '', ...(r.stamp?.changes || []).map((x) => `korrigiert: ${reasonLabel(x.reason)}`)].filter(Boolean).join('; ')],
   ['Freigegeben', (r) => (r.stamp?.approved ? r.stamp.approved.by || 'ja' : '')],
+  ['Gestempelt am', (r) => (!r.stamp || r.stamp.source === 'manuell' ? '' : r.stamp.via === 'tablet' ? 'Tablet im Objekt' : 'Handy (QR-Code)')],
 ]
 
 registerView({
