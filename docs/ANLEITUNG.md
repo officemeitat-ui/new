@@ -1294,6 +1294,7 @@ Gratis und am verlässlichsten weckt die App ntfy (Android ab 8, iPhone). Jede P
 3. Kommt die Probe an, tippt sie „Bin wach“; in der Spalte „Handy geprüft“ steht dann „bereit“.
 4. Vor dem ersten Schnee bei allen „Probe senden“; die Karte „Schnee-Alarm“ zeigt, wer noch fehlt.
 
+> Tipp: Nur ein kurzer Ton? In ntfy beim Thema „Keep alerting for highest priority“ einschalten und die Wecker-Lautstärke hochdrehen; dann läutet es wie ein Wecker, auch lautlos.
 > Tipp: Auf Android ntfy vom Energiesparen ausnehmen, sonst beendet das Handy die App im Hintergrund.
 > Tipp: Huawei-Handys ohne Google: ntfy aus F-Droid.
 > Tipp: Der Link wirkt wie ein Passwort: nur der Person geben, das Blatt nicht aufhängen.

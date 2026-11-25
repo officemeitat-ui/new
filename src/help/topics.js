@@ -961,7 +961,7 @@ export const TOPICS = [
     q: ['ntfy', 'alarm am handy', 'bin wach', 'push schnee', 'thema abonnieren', 'nicht stören alarm', 'alarm kommt nicht', 'handy prüfen', 'handy bereit', 'probe senden'],
     answer: 'Gratis und am verlässlichsten weckt die App ntfy (Android ab 8, iPhone). Jede Person bekommt einen Link zur Seite „Handy einrichten“ in ihrer Sprache: App laden, mit einem Tipp abonnieren, Einstellungen für die Nacht, Probe mit „Bin wach“. Danach steht im Alarm-Dialog „bereit“.',
     steps: ['Im Alarm-Dialog bei der Person „Einladung per WhatsApp“ oder „per E-Mail“ schicken, oder „Blätter zum Einrichten (PDF)“ drucken und jeder Person ihr Blatt geben.', 'Die Person öffnet den Link bzw. scannt den QR-Code und macht die vier Schritte auf der Seite.', 'Kommt die Probe an, tippt sie „Bin wach“; in der Spalte „Handy geprüft“ steht dann „bereit“.', 'Vor dem ersten Schnee bei allen „Probe senden“; die Karte „Schnee-Alarm“ zeigt, wer noch fehlt.'],
-    tips: ['Auf Android ntfy vom Energiesparen ausnehmen, sonst beendet das Handy die App im Hintergrund.', 'Huawei-Handys ohne Google: ntfy aus F-Droid.', 'Der Link wirkt wie ein Passwort: nur der Person geben, das Blatt nicht aufhängen.'],
+    tips: ['Nur ein kurzer Ton? In ntfy beim Thema „Keep alerting for highest priority“ einschalten und die Wecker-Lautstärke hochdrehen; dann läutet es wie ein Wecker, auch lautlos.', 'Auf Android ntfy vom Energiesparen ausnehmen, sonst beendet das Handy die App im Hintergrund.', 'Huawei-Handys ohne Google: ntfy aus F-Droid.', 'Der Link wirkt wie ein Passwort: nur der Person geben, das Blatt nicht aufhängen.'],
     related: ['schnee-alarm', 'schnee-alarm-sms', 'push-ntfy'],
   },
   {

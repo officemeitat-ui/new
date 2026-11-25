@@ -978,7 +978,7 @@ if ($aktion === 'handy') {
         . '<h2>1. ' . th('h_schritt1') . '</h2>' . $laden
         . '<h2>2. ' . th('h_schritt2') . '</h2><a class="knopf" href="' . $h($tief) . '">' . th('h_knopf') . '</a>'
         . '<p class="leise">' . th('h_vonhand', ['thema' => '<code>' . $h($thema) . '</code>', 'server' => '<code>' . $h($server) . '</code>']) . '</p>'
-        . '<h2>3. ' . th('h_schritt3') . '</h2><ul><li>' . th('h_einst_sofort') . '</li><li>' . th('h_einst_laut') . '</li><li><b>' . th('h_einst_dauer') . '</b></li><li>' . th('h_einst_akku') . '</li></ul>'
+        . '<h2>3. ' . th('h_schritt3') . '</h2><ul><li>' . th('h_einst_sofort') . '</li><li>' . th('h_einst_laut') . '</li><li><b>' . th('h_einst_dauer') . '</b></li><li><b>' . th('h_einst_wecker') . '</b></li><li>' . th('h_einst_akku') . '</li></ul>'
         . '<h2>4. ' . th('h_schritt4') . '</h2><form method="post" action="' . $h($selbst) . '"><button type="submit">' . th('h_probe_knopf') . '</button></form>', 200, '', t('h_titel'));
     exit;
 }
