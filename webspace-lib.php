@@ -41,7 +41,7 @@ function html_seite(string $inhalt, int $status = 200, string $skript = '', stri
         . 'main{max-width:30rem;margin:1rem auto;padding:1.5rem;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgb(19 35 47/.06),0 6px 20px rgb(19 35 47/.08)}'
         . 'img.logo{display:block;max-width:180px;max-height:64px;margin:0 0 1rem}h1{font-size:1.4rem;margin:0 0 .5rem}h2{font-size:1.1rem;margin:1.5rem 0 .4rem}p,.leise{color:' . $m['leise'] . '}'
         . 'label{display:block;margin:.8rem 0 .2rem;font-weight:600}label.haken{display:flex;gap:.6rem;align-items:center;font-weight:400;margin:.4rem 0}label.haken input{width:1.4rem;height:1.4rem}'
-        . 'select,input[type=time],textarea,input[type=file]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;background:#fff;color:inherit}'
+        . 'select,input[type=time],input[type=text],textarea,input[type=file]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;background:#fff;color:inherit}'
         . 'button,a.knopf{display:block;box-sizing:border-box;text-align:center;text-decoration:none;font:inherit;font-weight:700;font-size:1.2rem;color:#fff;background:' . $m['farbe'] . ';border:0;border-radius:8px;padding:.85rem 1.4rem;width:100%;cursor:pointer;margin-top:1.2rem}'
         . '.ok{background:#eef6e2;color:#4e7a1e;border-radius:8px;padding:.6rem .8rem;font-weight:600}.fehler{background:#fce8e6;color:#b3261e;border-radius:8px;padding:.6rem .8rem}'
         . 'ul{padding-left:1.2rem}li{margin:.2rem 0}main{overflow-wrap:break-word}'

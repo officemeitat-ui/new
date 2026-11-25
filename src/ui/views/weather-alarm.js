@@ -7,7 +7,7 @@
 // (privat/wetter-alarm.json, gesperrt).
 
 import { addDays, todayISO } from '../../core/dates.js'
-import { ALARM_DEFAULTS, alarmFile, alarmPlace, alarmProblems, findPlace, onCallIndex, PLACES, winterAt } from '../../core/weather.js'
+import { ALARM_DEFAULTS, alarmDrivers, alarmFile, alarmPlace, alarmProblems, driverLink, findPlace, onCallIndex, PLACES, winterAt } from '../../core/weather.js'
 import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { checked, download, esc, ICON, modalFrame, num, options, val } from '../shared.js'
 import { weatherLocations } from '../weather.js'
@@ -395,6 +395,133 @@ registerActions({
     }
   },
 })
+
+// ---------------------------------------------------------------- Protokoll-Links für Fahrer (ohne Alarm)
+// Jede Person bekommt einen dauerhaften Link zum Winterdienst-Protokoll am Handy (wetter-alarm.php?aktion=protokoll&f=…):
+// Objekt wählen oder Adresse eintragen, ankreuzen, Foto aufnehmen. Die Liste steht in den Einstellungen des Alarms
+// (alarm.drivers) und geht mit der Alarm-Datei an den Webspace; entfernt oder „Neuer Link“ macht den alten ungültig.
+
+/** Fahrer mit Protokoll-Link (für die Übersicht in „Wetter & Winterdienst“). */
+export const winterDrivers = () => alarmDrivers(alarmSettings(), app.data?.employees || [])
+
+function driverRows(m) {
+  if (!m.rows) m.rows = winterDrivers().map((d) => ({ id: d.id, code: d.code, name: d.name, employeeId: d.employeeId }))
+  return m.rows
+}
+
+/** Namen aus dem Dialog lesen; ein Name aus den Mitarbeitenden verknüpft die Person (Sprache der Seite, Austritt). */
+function readDrivers() {
+  const m = app.ui.modal
+  if (m?.type !== 'wx-drivers') return []
+  const rows = driverRows(m)
+  rows.forEach((r, i) => {
+    const el = document.getElementById(`wd-name-${i}`)
+    if (!el) return
+    r.name = el.value.trim()
+    const e = (app.data.employees || []).find((x) => String(x.name || '').trim().toLowerCase() === r.name.toLowerCase())
+    r.employeeId = e ? e.id : ''
+  })
+  return rows
+}
+
+const driverText = (name, link) => `Hallo ${String(name || '').split(' ')[0]}, hier ist dein Link für das Winterdienst-Protokoll: ${link}\nNach dem Räumen und Streuen: Objekt wählen (oder die Adresse eintragen), ankreuzen und ein Foto machen.`
+
+function driversModal(c, m) {
+  const rows = driverRows(m)
+  const a = alarmSettings()
+  const ed = canEdit('planung') && !app.readOnly
+  const saved = new Set(winterDrivers().map((d) => d.code))
+  const names = (app.data.employees || []).filter((e) => !e.exitDate || e.exitDate >= todayISO()).map((e) => e.name).sort((x, y) => String(x).localeCompare(String(y), 'de'))
+  const list = rows
+    .map((r, i) => {
+      const link = driverLink(address(), r.code)
+      const live = saved.has(r.code) && a.transferred
+      const phone = r.employeeId ? empById(r.employeeId)?.phone || '' : ''
+      return `<li class="wd-row">
+        <label class="field"><span>Name</span><input type="text" id="wd-name-${i}" list="wd-people" value="${esc(r.name)}" placeholder="aus den Mitarbeitenden oder frei" autocomplete="off" ${ed ? '' : 'disabled'}></label>
+        <label class="field wd-link"><span>Link zum Protokoll${live ? '' : ' <span class="muted">(gilt nach „Speichern und übertragen“)</span>'}</span><input type="text" value="${esc(link)}" readonly aria-label="Link für ${esc(r.name || 'neue Person')}"></label>
+        <div class="actions"><button class="btn small" data-action="wx-alarm-copy" data-text="${esc(link)}">Kopieren</button>${r.name ? waLink({ kind: 'winter-link', phone, text: driverText(r.name, link), label: 'WhatsApp' }) : ''}${ed ? `<button class="btn small" data-action="wx-drivers-renew" data-idx="${i}" title="Der bisherige Link wird ungültig (z. B. Handy verloren)">Neuer Link</button><button class="btn small ghost" data-action="wx-drivers-del" data-idx="${i}">Entfernen</button>` : ''}</div>
+      </li>`
+    })
+    .join('')
+  const setup = a.transferred ? '' : `<div class="banner warn-banner"><p><strong>Am Webspace noch nicht eingerichtet.</strong> „Speichern und übertragen“ versucht es direkt. Geht das nicht, einmal „Alarm-Datei herunterladen“ und per FTP in den Ordner privat/ der App laden – danach hält die App die Datei selbst aktuell.</p></div>`
+  return modalFrame({
+    title: 'Protokoll-Links für Fahrer',
+    subtitle: 'Winterdienst-Protokoll am Handy, ohne Anmeldung und ohne Alarm',
+    wide: true,
+    body: `<p>Jede Person bekommt einen eigenen, dauerhaften Link. Am Handy wählt sie das Objekt (alle Objekte mit Winterdienst, mit Adresse) oder trägt eine andere Adresse ein, kreuzt „geräumt“, „gestreut“ oder „nur kontrolliert“ an und nimmt bis zu vier Fotos auf. Die App holt Einträge und Fotos ab und legt die Fotos in SharePoint ab.</p>
+      ${setup}
+      ${rows.length ? `<ul class="wd-list">${list}</ul>` : '<p class="empty">Noch niemand eingetragen.</p>'}
+      <datalist id="wd-people">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+      ${ed ? `<button class="btn" data-action="wx-drivers-add">${ICON.plus} Person hinzufügen</button>` : ''}
+      <p class="note">Der Link wirkt wie ein Schlüssel: nur an die Person selbst weitergeben. „Entfernen“ oder „Neuer Link“ macht den bisherigen nach dem Übertragen ungültig. Die Seite zeigt keine Preise und keine Daten anderer Personen.</p>`,
+    foot: `<div class="actions">${ed ? `<button class="btn" data-action="wx-drivers-download">${ICON.download} Alarm-Datei herunterladen</button>` : ''}</div>
+      <div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<button class="btn primary" data-action="wx-drivers-save">Speichern und übertragen</button>' : ''}</div>`,
+  })
+}
+registerModal('wx-drivers', driversModal, { module: 'planung' })
+
+/** Einstellungen mit der Liste aus dem Dialog (leere Namen fallen weg), Schlüssel ergänzt. */
+function withDrivers() {
+  const drivers = readDrivers()
+    .filter((r) => r.name)
+    .map((r) => ({ id: r.id, code: r.code, name: r.name, ...(r.employeeId ? { employeeId: r.employeeId } : {}) }))
+  return complete({ ...alarmSettings(), drivers }, weatherLocations())
+}
+
+registerActions({ 'wx-drivers-open': () => openModal({ type: 'wx-drivers' }) })
+
+registerActions(
+  {
+    'wx-drivers-add': () => {
+      const rows = readDrivers()
+      rows.push({ id: `wd${hex(4)}`, code: hex(12), name: '', employeeId: '' })
+      renderModal()
+      document.getElementById(`wd-name-${rows.length - 1}`)?.focus()
+    },
+    'wx-drivers-del': (el) => {
+      readDrivers().splice(Number(el.dataset.idx), 1)
+      renderModal()
+    },
+    'wx-drivers-renew': (el) => {
+      const r = readDrivers()[Number(el.dataset.idx)]
+      if (!r) return
+      r.code = hex(12)
+      renderModal()
+      toast('Neuer Link: gilt nach „Speichern und übertragen“, der bisherige ist dann ungültig.')
+    },
+    'wx-drivers-download': () => {
+      const a = withDrivers()
+      saveSettings(strip(a))
+      download('wetter-alarm.json', new Blob([`${JSON.stringify(fileFor(a, weatherLocations()), null, 2)}\n`], { type: 'application/json' }))
+      closeModal()
+      renderNow()
+      toast('Gespeichert und heruntergeladen: wetter-alarm.json per FTP in den Ordner privat/ der App laden.')
+    },
+    'wx-drivers-save': async () => {
+      const a = withDrivers()
+      const n = (a.drivers || []).length
+      saveSettings(strip(a))
+      closeModal()
+      renderNow()
+      try {
+        await post('speichern', fileFor(a, weatherLocations()))
+        // ab jetzt hält die App die Datei von selbst aktuell
+        saveSettings({ ...strip(a), transferred: true })
+        try {
+          localStorage.setItem('cleanos-alarm-gesendet', hashOf(JSON.stringify(fileFor({ ...a, transferred: true }, weatherLocations()))))
+        } catch {
+          /* privat */
+        }
+        renderNow()
+        toast(`Übertragen: ${n} ${n === 1 ? 'Protokoll-Link gilt' : 'Protokoll-Links gelten'} jetzt.`)
+      } catch (err) {
+        toast(`Gespeichert, aber nicht übertragen: ${err.message}`)
+      }
+    },
+  },
+  { edit: 'planung' },
+)
 
 /** Entwurfsfelder, die nicht gespeichert werden (die Orte stehen bei den Regeln). */
 function strip(a) {

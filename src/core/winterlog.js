@@ -33,7 +33,7 @@ export function fromServer(p) {
     notiz: String(p.notiz || '').slice(0, 500),
     fotos: (p.fotos || []).filter((f) => /^[a-f0-9]{12}-[1-4]\.(jpg|png|webp)$/.test(f)).map((datei) => ({ datei })),
     lage: String(p.lage || ''),
-    quelle: 'Handy',
+    quelle: p.quelle === 'fahrer' ? 'Handy (Fahrer-Link)' : 'Handy',
     test: !!p.test,
     entered: new Date(Number(p.eingetragen || p.erledigt) * 1000).toISOString(),
   }
@@ -44,6 +44,18 @@ export function newFromServer(serverEntries, log = {}) {
   const known = new Set(Object.values(log).map((e) => e.serverId).filter(Boolean))
   return (serverEntries || []).filter((p) => p && p.id && !p.test && !known.has(String(p.id))).map(fromServer)
 }
+
+/** Text für eine freie Adresse (Eintrag ohne Objekt der App). */
+export const freeName = (e) => String(e?.object || e?.address || '').trim() || 'andere Adresse'
+
+/** Einträge eines Tags an einer freien Adresse (ohne Objekt), nach Uhrzeit. */
+export const freeEntriesFor = (log = {}, date, name) =>
+  Object.values(log)
+    .filter((e) => e.date === date && !e.objectId && freeName(e) === name)
+    .sort((a, b) => a.at.localeCompare(b.at))
+
+/** Dateiname für ein in der App aufgenommenes Foto: zwölf Hex-Zeichen und die Nummer, wie vom Webspace. */
+export const photoName = (hex12, n) => `${String(hex12).toLowerCase()}-${n}.jpg`
 
 /** Einträge eines Tags und Objekts, nach Uhrzeit. */
 export const entriesFor = (log = {}, date, objectId) =>

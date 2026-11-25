@@ -487,6 +487,14 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
       stufe1: set.level1.map((id) => person(id, a.emailLevel1)).filter(Boolean),
       stufe2: [...set.level2.map((id) => person(id, true)).filter(Boolean), ...office],
     }))
+  // dauerhafte Protokoll-Links der Fahrer (ohne Alarm) und alle Objekte mit Winterdienst für deren Formular
+  const fahrer = alarmDrivers(a, employees, today).filter((d) => !d.gone).map((d) => ({ code: d.code, name: d.name, ...(d.lang && d.lang !== 'de' ? { sprache: d.lang } : {}) }))
+  const ortOf = new Map()
+  for (const loc of locations || []) for (const o of winterAt(loc, objects, locations).objects) if (!ortOf.has(o.id)) ortOf.set(o.id, loc.name)
+  const winterObjekte = (objects || [])
+    .filter((o) => o.winter?.active && o.active !== false)
+    .map((o) => ({ id: o.id, name: o.name, adresse: o.address || '', ort: ortOf.get(o.id) || '' }))
+    .sort((x, y) => x.ort.localeCompare(y.ort, 'de') || x.name.localeCompare(y.name, 'de'))
   return {
     version: 1,
     schluessel: a.key,
@@ -496,8 +504,33 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     absender: a.sender || '',
     regeln: { vorlaufStunden: Number(a.leadHours), schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2 },
     orte,
+    // nur mit Fahrern: ohne sie bleibt die Datei, wie sie war
+    ...(fahrer.length ? { fahrer, winterObjekte } : {}),
   }
 }
+
+export const DRIVER_CODE = /^[a-f0-9]{24}$/
+
+/**
+ * Fahrer mit dauerhaftem Protokoll-Link (alarm.drivers: [{ id, code, name, employeeId? }]): gültige Einträge mit
+ * Name (aus dem Stammblatt, wenn verknüpft), Sprache und „gone“ (ausgeschieden: der Link gilt am Webspace nicht mehr).
+ */
+export function alarmDrivers(alarm, employees = [], today = viennaParts(Date.now()).date) {
+  const seen = new Set()
+  const out = []
+  for (const d of alarm?.drivers || []) {
+    if (!d || !DRIVER_CODE.test(d.code || '') || seen.has(d.code)) continue
+    const e = d.employeeId ? (employees || []).find((x) => x.id === d.employeeId) : null
+    const name = String(e?.name || d.name || '').trim()
+    if (!name) continue
+    seen.add(d.code)
+    out.push({ id: d.id || d.code, code: d.code, name, employeeId: e ? e.id : '', lang: e?.lang || '', phone: e?.phone || '', gone: !!(e?.exitDate && e.exitDate < today) })
+  }
+  return out
+}
+
+/** Adresse des Protokolls am Handy für einen Fahrer. */
+export const driverLink = (address, code) => `${String(address || '').replace(/\/?$/, '/')}wetter-alarm.php?aktion=protokoll&f=${code}`
 
 /** Was am Alarm noch fehlt (für die Anzeige): Orte ohne Stufe 1, Personen ohne Handy-Thema. */
 export function alarmProblems(file) {

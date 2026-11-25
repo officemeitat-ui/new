@@ -301,6 +301,46 @@ function alarm_zum_code(string $token): ?array
     return null;
 }
 
+/**
+ * Fahrer zu einem dauerhaften Protokoll-Code (Liste „fahrer“ der Einstellungen, in der App unter Wetter &
+ * Winterdienst → „Protokoll-Links für Fahrer“): ['code', 'name', 'sprache'?] oder null. Der Link gilt, bis die
+ * Person in der App entfernt oder ihr Link erneuert wird – ohne Schnee-Alarm.
+ */
+function fahrer_zum_code(?array $e, string $code): ?array
+{
+    if (!$e || strlen($code) !== 24) {
+        return null;
+    }
+    foreach ((array) ($e['fahrer'] ?? []) as $f) {
+        if (is_array($f) && is_string($f['code'] ?? null) && strlen($f['code']) === 24 && hash_equals($f['code'], $code) && trim((string) ($f['name'] ?? '')) !== '') {
+            return $f;
+        }
+    }
+    return null;
+}
+
+/**
+ * Objekte für den Fahrer-Link als [['id', 'name', 'adresse', 'ort']]: alle Objekte mit Winterdienst (Liste
+ * „winterObjekte“ der Einstellungen), sonst die Objekte aller eingeschalteten Orte.
+ */
+function fahrer_objekte(array $e): array
+{
+    $aus = [];
+    foreach ((array) ($e['winterObjekte'] ?? []) as $i => $o) {
+        if (is_array($o) && trim((string) ($o['name'] ?? '')) !== '') {
+            $aus[(string) ($o['id'] ?? "w$i")] = ['id' => (string) ($o['id'] ?? "w$i"), 'name' => (string) $o['name'], 'adresse' => (string) ($o['adresse'] ?? ''), 'ort' => (string) ($o['ort'] ?? '')];
+        }
+    }
+    if (!$aus) {
+        foreach ((array) ($e['orte'] ?? []) as $ort) {
+            foreach (objekte($ort) as $o) {
+                $aus[$o['id']] = $o + ['ort' => (string) ($ort['name'] ?? '')];
+            }
+        }
+    }
+    return array_values($aus);
+}
+
 // ---------------------------------------------------------------- Benachrichtigen
 
 function adresse(array $e): string
@@ -489,32 +529,56 @@ if ($aktion === 'wach') {
 // Winterdienst-Protokoll am Handy: mit dem Code aus dem Alarm, ohne Anmeldung. GET: Formular, POST: speichern.
 if ($aktion === 'protokoll') {
     $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
+    // dauerhafter Link eines Fahrers (f=…): ohne Alarm, alle Objekte mit Winterdienst oder eine freie Adresse
+    $code = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['f'] ?? ''));
     $zu = $e ? alarm_zum_code($token) : null;
-    sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : [], true);
-    if (!$zu) {
-        html_seite('<h1>' . th('w_protokoll') . '</h1><p>' . th('w_link_abgelaufen') . '</p>', 404, '', t('w_titel'));
+    $fahrer = $zu ? null : fahrer_zum_code($e, $code);
+    sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : (array) ($fahrer ?? []), true);
+    if (!$zu && !$fahrer) {
+        html_seite('<h1>' . th('w_protokoll') . '</h1><p>' . th($code !== '' ? 'w_link_ungueltig' : 'w_link_abgelaufen') . '</p>', 404, '', t('w_titel'));
         exit;
     }
-    [$ortName, $person, $alarm, $lage] = $zu;
-    $ort = null;
-    foreach ((array) $e['orte'] as $o) {
-        if ($o['name'] === $ortName) {
-            $ort = $o;
+    if ($zu) {
+        [$ortName, $person, $alarm, $lage] = $zu;
+        $ort = null;
+        foreach ((array) $e['orte'] as $o) {
+            if ($o['name'] === $ortName) {
+                $ort = $o;
+            }
         }
+        $liste = array_map(fn ($o) => $o + ['ort' => $ortName], $ort ? objekte($ort) : []);
+        $selbst = 'wetter-alarm.php?aktion=protokoll&t=' . $token;
+    } else {
+        $ortName = '';
+        $person = trim((string) $fahrer['name']);
+        $alarm = ['id' => '', 'test' => false];
+        $lage = '';
+        $liste = fahrer_objekte($e);
+        $selbst = 'wetter-alarm.php?aktion=protokoll&f=' . $code;
     }
-    $liste = $ort ? objekte($ort) : [];
     $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
     $meldung = '';
     if ($methode === 'POST') {
         $fehler = [];
         $obj = null;
-        foreach ($liste as $o) {
-            if ($o['id'] === (string) ($_POST['objekt'] ?? '')) {
-                $obj = $o;
+        $wahl = (string) ($_POST['objekt'] ?? '');
+        if ($wahl === 'andere') {
+            // freie Adresse (Objekt nicht in der Liste): einzeilig, begrenzt
+            $frei = mb_substr(trim((string) preg_replace('/\s+/u', ' ', (string) ($_POST['adresse'] ?? ''))), 0, 160);
+            if (mb_strlen($frei) < 5) {
+                $fehler[] = t('w_fehler_adresse');
+            } else {
+                $obj = ['id' => '', 'name' => $frei, 'adresse' => $frei, 'ort' => $ortName];
             }
-        }
-        if (!$obj) {
-            $fehler[] = t('fehler_objekt');
+        } else {
+            foreach ($liste as $o) {
+                if ($o['id'] === $wahl) {
+                    $obj = $o;
+                }
+            }
+            if (!$obj) {
+                $fehler[] = t('fehler_objekt');
+            }
         }
         $geraeumt = !empty($_POST['geraeumt']);
         $gestreut = !empty($_POST['gestreut']);
@@ -572,13 +636,15 @@ if ($aktion === 'protokoll') {
                     }
                 }
             }
-            $eintrag = ['id' => $id, 'datum' => uhrzeit($erledigt, 'Y-m-d'), 'erledigt' => $erledigt, 'ort' => $ortName, 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'adresse' => $obj['adresse'], 'person' => $person,
+            $eintrag = ['id' => $id, 'datum' => uhrzeit($erledigt, 'Y-m-d'), 'erledigt' => $erledigt, 'ort' => (string) ($obj['ort'] ?? $ortName), 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'adresse' => $obj['adresse'], 'person' => $person,
                 'geraeumt' => $geraeumt, 'gestreut' => $gestreut, 'kontrolle' => $kontrolle && !$geraeumt && !$gestreut, 'mittel' => $gestreut ? $mittel : '', 'notiz' => $notiz, 'fotos' => $gespeichert, 'lage' => $lage,
-                'eingetragen' => jetzt(), 'alarm' => (string) $alarm['id'], 'test' => !empty($alarm['test'])];
+                'eingetragen' => jetzt(), 'alarm' => (string) $alarm['id'], 'test' => !empty($alarm['test']), 'quelle' => $zu ? 'alarm' : 'fahrer'];
             if (protokoll_anhaengen($eintrag)) {
-                mit_stand(function (array &$stand) use ($ortName, $person, $obj) {
-                    protokoll($stand, $ortName, "Protokoll von $person: " . $obj['name']);
-                });
+                if ($zu) {
+                    mit_stand(function (array &$stand) use ($ortName, $person, $obj) {
+                        protokoll($stand, $ortName, "Protokoll von $person: " . $obj['name']);
+                    });
+                }
                 $uhr = $h(t('uhrzeit', ['zeit' => uhrzeit($erledigt)]));
                 $meldung = '<p class="ok">' . ($gespeichert
                     ? th('w_gespeichert_fotos', ['objekt' => $h($obj['name']), 'uhr' => $uhr, 'fotos' => count($gespeichert) === 1 ? th('w_foto_1') : th('w_fotos', ['n' => (string) count($gespeichert)])])
@@ -592,19 +658,32 @@ if ($aktion === 'protokoll') {
     }
     // heute an diesem Ort schon eingetragen
     $heute = uhrzeit(jetzt(), 'Y-m-d');
-    $erledigtHeute = array_values(array_filter(protokolle_lesen(substr($heute, 0, 7)), fn ($p) => $p['ort'] === $ortName && $p['datum'] === $heute));
+    // mit dem Alarm-Link: was heute an diesem Ort eingetragen ist; mit dem Fahrer-Link: was die Person heute eingetragen hat
+    $erledigtHeute = array_values(array_filter(protokolle_lesen(substr($heute, 0, 7)), fn ($p) => ($p['datum'] ?? '') === $heute && ($zu ? ($p['ort'] ?? '') === $ortName : ($p['person'] ?? '') === $person && ($p['quelle'] ?? '') === 'fahrer')));
     $fertig = array_column($erledigtHeute, 'objektId');
+    // Fahrer-Link mit Objekten an mehreren Orten: nach Ort gegliedert
+    $orteDerListe = array_values(array_unique(array_filter(array_map(fn ($o) => (string) ($o['ort'] ?? ''), $liste))));
+    $gruppen = count($orteDerListe) > 1;
     $optionen = '';
+    $gruppe = null;
     foreach ($liste as $o) {
+        if ($gruppen && ($o['ort'] ?? '') !== $gruppe) {
+            $optionen .= ($gruppe !== null ? '</optgroup>' : '') . '<optgroup label="' . $h((string) ($o['ort'] ?? '') ?: '–') . '">';
+            $gruppe = (string) ($o['ort'] ?? '');
+        }
         $optionen .= '<option value="' . $h($o['id']) . '">' . $h($o['name'] . ($o['adresse'] ? ', ' . $o['adresse'] : '')) . (in_array($o['id'], $fertig, true) ? ' ✓' : '') . '</option>';
     }
-    $schon = $erledigtHeute ? '<h2>' . th('w_heute') . '</h2><ul>' . implode('', array_map(fn ($p) => '<li>' . $h($p['objekt']) . ', ' . $h(t('uhrzeit', ['zeit' => uhrzeit((int) $p['erledigt'])])) . ', ' . $h($p['person']) . '</li>', $erledigtHeute)) . '</ul>' : '';
+    $optionen .= ($gruppen && $gruppe !== null ? '</optgroup>' : '') . '<option value="andere">' . th('w_andere_adresse') . '</option>';
+    $schon = $erledigtHeute ? '<h2>' . th($zu ? 'w_heute' : 'w_heute_dir') . '</h2><ul>' . implode('', array_map(fn ($p) => '<li>' . $h($p['objekt']) . ', ' . $h(t('uhrzeit', ['zeit' => uhrzeit((int) $p['erledigt'])])) . ', ' . $h($p['person']) . '</li>', $erledigtHeute)) . '</ul>' : '';
     // Streumittel: Wert bleibt deutsch (Protokoll, Büro), angezeigt in der Sprache
     $mittelText = ['Splitt' => 'w_splitt', 'Salz' => 'w_salz', 'Sand' => 'w_sand', 'Splitt und Salz' => 'w_splitt_salz'];
     $mittelOpt = implode('', array_map(fn ($x) => '<option value="' . $h($x) . '">' . ($x === '' ? '–' : (isset($mittelText[$x]) ? th($mittelText[$x]) : $h($x))) . '</option>', STREUMITTEL));
-    html_seite(sprachwahl_html('wetter-alarm.php?aktion=protokoll&t=' . $token) . '<h1>' . th('w_protokoll') . '</h1><p>' . $h($ortName) . ' · ' . $h($person) . '</p>' . $meldung
-        . ($liste ? '<form method="post" enctype="multipart/form-data" data-fotos-verkleinern>'
+    // der Fahrer-Link hat immer ein Formular (freie Adresse), der Alarm-Link nur mit Objekten am Ort
+    html_seite(sprachwahl_html($selbst) . '<h1>' . th('w_protokoll') . '</h1><p>' . $h(implode(' · ', array_filter([$ortName, $person]))) . '</p>' . $meldung
+        . (!$liste && !$zu ? '<p>' . th('w_kein_objekt_fahrer') . '</p>' : '')
+        . ($liste || !$zu ? '<form method="post" enctype="multipart/form-data" data-fotos-verkleinern>'
             . '<label for="objekt">' . th('objekt') . '</label><select id="objekt" name="objekt" required><option value="">' . th('w_waehlen') . '</option>' . $optionen . '</select>'
+            . '<label for="adresse">' . th('w_adresse') . '</label><input type="text" id="adresse" name="adresse" maxlength="160" autocomplete="street-address" placeholder="' . th('w_adresse_bsp') . '" value="' . $h(($methode === 'POST' && $meldung !== '' && str_contains($meldung, 'class="fehler"')) ? (string) ($_POST['adresse'] ?? '') : '') . '">'
             . '<label for="erledigt">' . th('w_erledigt_um') . '</label><input type="time" id="erledigt" name="erledigt" value="' . uhrzeit(jetzt()) . '" required>'
             . '<label class="haken"><input type="checkbox" name="geraeumt" value="1"> ' . th('w_geraeumt') . '</label>'
             . '<label class="haken"><input type="checkbox" name="gestreut" value="1"> ' . th('w_gestreut') . '</label>'

@@ -2,13 +2,13 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 431 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 432 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (31)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (32)
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
@@ -1220,14 +1220,32 @@ Jede Person in Stufe 1 und 2 bekommt ein eigenes ntfy-Thema. Auf dem Handy die A
 
 *In der App: Wetter & Winterdienst*
 
-Die Alarm-Nachricht hat neben „Bin wach“ den Knopf „Protokoll“, ohne Anmeldung. Dort wählt die Person das Objekt und trägt ein: erledigt um, geräumt, gestreut (Splitt, Salz, Sand) oder nur kontrolliert, eine Notiz und bis zu 4 Fotos.
+Am Handy geht das Protokoll ohne Anmeldung auf zwei Wegen: über den Knopf „Protokoll“ in der Alarm-Nachricht oder jederzeit über den eigenen, dauerhaften Protokoll-Link der Person. Dort wählt sie das Objekt (oder trägt eine andere Adresse ein), kreuzt geräumt, gestreut oder nur kontrolliert an und nimmt bis zu 4 Fotos auf.
 
 1. In der Alarm-Nachricht „Protokoll“ tippen.
 2. Objekt wählen, Uhrzeit und Tätigkeit eintragen.
 3. Fotos aufnehmen und speichern.
 
-> Tipp: Der Link gilt 36 Stunden nach dem Alarm.
+> Tipp: Der Link aus dem Alarm gilt 36 Stunden; der dauerhafte Protokoll-Link gilt, bis das Büro ihn entfernt oder erneuert.
 > Tipp: Öffnet jemand mit Einsatzplanung die Ansicht, übernimmt die App die Protokolle nach SharePoint; „Vom Handy holen“ geht sofort.
+
+### Protokoll-Link für Fahrer: Objekt, Adresse und Foto am Handy
+
+*In der App: Wetter & Winterdienst*
+
+Unter „Protokoll-Links für Fahrer“ bekommt jede Person einen eigenen, dauerhaften Link fürs Handy – ohne Anmeldung und ohne Schnee-Alarm. Der Fahrer wählt das Objekt mit Adresse aus allen Objekten mit Winterdienst oder trägt eine andere Adresse ein, kreuzt an, was er gemacht hat, und nimmt vor Ort Fotos auf. Die App holt Einträge und Fotos ab und legt die Fotos in SharePoint ab.
+
+1. „Wetter & Winterdienst“ öffnen, beim Winterdienst-Protokoll „Protokoll-Links für Fahrer“ klicken.
+2. „Person hinzufügen“, Namen eintragen (aus den Mitarbeitenden oder frei).
+3. „Speichern und übertragen“ klicken.
+4. Den Link kopieren oder per WhatsApp an die Person senden.
+
+> Tipp: Der Link wirkt wie ein Schlüssel: nur an die Person selbst geben. „Neuer Link“ oder „Entfernen“ macht den alten ungültig.
+> Tipp: Beim ersten Mal muss die Alarm-Datei einmal in den Ordner privat/ am Webspace hochgeladen werden; danach überträgt die App Änderungen selbst.
+> Tipp: Einträge an einer freien Adresse stehen in der Übersicht als „andere Adresse“ und im internen PDF; abgerechnet wird nur je Objekt.
+> Tipp: Die Seite gibt es in sechs Sprachen (nach dem Stammblatt der Person).
+
+*Vollzugriff bzw. Einsatzplanung bearbeiten*
 
 ### Winterdienst-Protokoll und PDF-Nachweis
 
@@ -1236,7 +1254,7 @@ Die Alarm-Nachricht hat neben „Bin wach“ den Knopf „Protokoll“, ohne Anm
 Das Protokoll hält fest, wer wann wo geräumt und gestreut hat; bei einem Sturz ist es der übliche Nachweis nach § 93 StVO. Angelegter Winterdienst ohne Protokoll ist rot markiert und steht 2 Stunden nach „fertig bis“ unter „Zu erledigen“.
 
 1. In „Wetter & Winterdienst“ beim „Winterdienst-Protokoll“ „Eintragen“ klicken (oder im Einsatz „Erledigt eintragen“).
-2. Tag, Uhrzeit, Objekt, Person, geräumt/gestreut und Streumittel eintragen.
+2. Tag, Uhrzeit, Objekt (oder „andere Adresse“), Person, geräumt/gestreut und Streumittel eintragen; bei Bedarf bis zu 4 Fotos anhängen.
 3. „Speichern“ klicken.
 4. Für den Monat „PDF-Nachweis“ erstellen; für einen Kunden bei „für“ sein Objekt wählen (nur dieses Objekt, Namen wie beim Leistungsnachweis eingestellt), „E-Mail“ hängt das PDF an.
 

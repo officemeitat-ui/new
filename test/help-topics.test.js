@@ -243,7 +243,7 @@ test('Themen: jede Aktion ist registriert, mit Beschriftung und Text-Daten', () 
 // Rückgängig) und „sync-now“ (Abgleich). Eine neue Aktion hier bewusst ergänzen.
 const SAFE = new Set([
   'plan', 'sync-now', 'open-todo', 'open-publish', 'open-send', 'open-search', 'open-data', 'open-absence-new', 'quick-open', 'quick-keys', 'theme-open', 'bn-edit', 'ai-open', 'help-open',
-  'appt-new', 'portal-open', 'tc-edit-open', 'wx-alarm-open', 'winterlog-add', 'complaint-new', 'aufg-new', 'key-move-open', 'key-edit-open', 'keys-paste-open',
+  'appt-new', 'portal-open', 'tc-edit-open', 'wx-alarm-open', 'winterlog-add', 'complaint-new', 'aufg-new', 'wx-drivers-open', 'key-move-open', 'key-edit-open', 'keys-paste-open',
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',
   'abs-import-open', 'mw-imp-paste-open', 'system-data', 'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open', 'tr-import-open', 'tr-ask-open', 'anl-edit-open', 'anl-check-open', 'anl-types-open', 'gr-edit-open', 'gr-check-open', 'gr-types-open', 'gr-repair-open', 'mw-edit-open', 'mw-plan-open', 'mw-rhythm-open', 'mw-closures-open', 'mw-tp-depot-open', 'mw-tp-drivers-open', 'mw-ls-settings-open', 'mww-web-open', 'reg-new', 'qm-groups-open', 'qm-measure-open', 'qm-settings-open', 'kz-round-open', 'kz-settings-open', 'kz-links-open',

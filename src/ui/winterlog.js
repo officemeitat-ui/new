@@ -5,13 +5,13 @@
 
 import { addDays, formatDate, mondayOf, MONTH_LONG, todayISO } from '../core/dates.js'
 import { viennaParts, viennaTime } from '../core/weather.js'
-import { entriesFor, logKey, logRows, missingLogs, newFromServer, photoPath, STREUMITTEL, workText } from '../core/winterlog.js'
+import { entriesFor, freeEntriesFor, freeName, logKey, logRows, missingLogs, newFromServer, photoName, photoPath, STREUMITTEL, workText } from '../core/winterlog.js'
 import { winterLogDocument, winterLogPdfName } from '../export/winter-pdf.js'
 import { app, canEdit, closeModal, confirmStep, onModalRender, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
 import { registerTodo } from './modals/todo.js'
 import { loadLogo, pdfBlob } from './pdf.js'
 import { checked, download, esc, ICON, modalFrame, options, uid, val } from './shared.js'
-import { alarmSettings } from './views/weather-alarm.js'
+import { alarmSettings, winterDrivers } from './views/weather-alarm.js'
 import { weatherRules } from './weather.js'
 
 const logOf = () => (app.data.winterlog ||= {})
@@ -44,7 +44,8 @@ async function serverPhoto(datei) {
 /** Protokolle vom Webspace holen und übernehmen (Fotos nach SharePoint). Höchstens alle 3 Minuten, force: sofort. */
 export async function syncFromPhones({ force = false } = {}) {
   const a = alarmSettings()
-  if (!a.enabled || !a.key || sync.running || (!force && Date.now() - sync.at < 180e3)) return 0
+  // mit eingeschaltetem Schnee-Alarm oder mit Protokoll-Links für Fahrer (die gelten auch ohne Alarm)
+  if (!(a.enabled || winterDrivers().length) || !a.key || sync.running || (!force && Date.now() - sync.at < 180e3)) return 0
   sync.running = true
   sync.at = Date.now()
   let taken = 0
@@ -146,6 +147,19 @@ async function photoDataUrl(f, max = 1000) {
   return c.toDataURL('image/jpeg', 0.8)
 }
 
+/** Foto vor dem Hochladen verkleinern und neu kodieren (längste Seite 1600 px, JPEG; dabei fallen die Metadaten weg). */
+async function shrinkPhoto(file, max = 1600, quality = 0.82) {
+  const bmp = await createImageBitmap(file)
+  const s = Math.min(1, max / Math.max(bmp.width, bmp.height))
+  const c = document.createElement('canvas')
+  c.width = Math.max(1, Math.round(bmp.width * s))
+  c.height = Math.max(1, Math.round(bmp.height * s))
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height)
+  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', quality))
+  if (!blob) throw new Error('Foto nicht lesbar')
+  return blob
+}
+
 // ---------------------------------------------------------------- Übersicht in „Wetter & Winterdienst“
 
 export function logSection(today = todayISO()) {
@@ -157,29 +171,39 @@ export function logSection(today = todayISO()) {
     const [date, objectId] = key.split('|')
     if (call && !call.cancelled && date >= from && date <= today) rows.set(`${date}|${objectId}`, { date, objectId, call })
   }
-  for (const e of Object.values(logOf())) if (e.date >= from && e.date <= today) rows.set(`${e.date}|${e.objectId}`, { ...(rows.get(`${e.date}|${e.objectId}`) || {}), date: e.date, objectId: e.objectId })
-  const list = [...rows.values()].sort((a, b) => b.date.localeCompare(a.date) || (objOf(a.objectId)?.name || '').localeCompare(objOf(b.objectId)?.name || ''))
+  for (const e of Object.values(logOf())) {
+    if (e.date < from || e.date > today) continue
+    // ohne Objekt (freie Adresse vom Fahrer-Link oder aus der App): je Tag und Adresse eine Zeile
+    const k = e.objectId ? `${e.date}|${e.objectId}` : `${e.date}|frei:${freeName(e)}`
+    rows.set(k, { ...(rows.get(k) || {}), date: e.date, objectId: e.objectId, ...(e.objectId ? {} : { free: freeName(e) }) })
+  }
+  const rowName = (r) => (r.free !== undefined ? r.free : objOf(r.objectId)?.name || '')
+  const list = [...rows.values()].sort((a, b) => b.date.localeCompare(a.date) || rowName(a).localeCompare(rowName(b), 'de'))
   const ed = editable()
   const body = list
     .map((r) => {
       const o = objOf(r.objectId)
-      const entries = entriesFor(logOf(), r.date, r.objectId)
+      const entries = r.free !== undefined ? freeEntriesFor(logOf(), r.date, r.free) : entriesFor(logOf(), r.date, r.objectId)
       const status = entries.length
-        ? entries.map((e) => `<span class="pill ok">${esc(timeOf(e.at))} ${esc(e.person || '')}: ${esc(workText(e))}</span>${e.fotos?.length ? ` <button class="link-btn" data-action="winterlog-fotos" data-key="${esc(logKey(e))}">${e.fotos.length} ${e.fotos.length === 1 ? 'Foto' : 'Fotos'}</button>` : ''}${e.notiz ? ` <span class="muted">${esc(e.notiz)}</span>` : ''}`).join('<br>')
+        ? entries.map((e) => `<span class="pill ok">${esc(timeOf(e.at))}${e.person ? ` ${esc(e.person)}` : ''}: ${esc(workText(e))}</span>${e.fotos?.length ? ` <button class="link-btn" data-action="winterlog-fotos" data-key="${esc(logKey(e))}">${e.fotos.length} ${e.fotos.length === 1 ? 'Foto' : 'Fotos'}</button>` : ''}${e.notiz ? ` <span class="muted">${esc(e.notiz)}</span>` : ''}`).join('<br>')
         : `<span class="pill error">kein Protokoll</span>`
-      return `<tr><td>${esc(formatDate(r.date))}</td><td><strong>${esc(o?.short || o?.name || r.objectId)}</strong></td><td>${status}</td><td class="actions">${ed ? `<button class="btn small" data-action="winterlog-add" data-date="${esc(r.date)}" data-obj="${esc(r.objectId)}">Eintragen</button>` : ''}</td></tr>`
+      const name = r.free !== undefined ? `${esc(r.free)}</strong> <span class="muted">(andere Adresse)</span><strong>` : esc(o?.short || o?.name || r.objectId)
+      return `<tr><td>${esc(formatDate(r.date))}</td><td><strong>${name}</strong></td><td>${status}</td><td class="actions">${ed ? `<button class="btn small" data-action="winterlog-add" data-date="${esc(r.date)}" data-obj="${esc(r.objectId)}"${r.free !== undefined ? ` data-address="${esc(r.free)}"` : ''}>Eintragen</button>` : ''}</td></tr>`
     })
     .join('')
   const months = [...new Set([today.slice(0, 7), addDays(`${today.slice(0, 7)}-01`, -1).slice(0, 7), ...Object.values(logOf()).map((e) => e.date.slice(0, 7))])].sort().reverse()
   const a = alarmSettings()
-  const syncLine = a.enabled
+  const drivers = winterDrivers().filter((d) => !d.gone)
+  const phones = a.enabled || drivers.length > 0
+  const syncLine = phones
     ? `<p class="note">${sync.error ? `<span class="pill warning">Protokolle vom Handy: ${esc(sync.error)}</span>` : sync.pending && !ed ? `${sync.pending} neue Protokolle vom Handy warten auf die Übernahme (Disposition).` : `Protokolle vom Handy werden beim Öffnen übernommen${sync.at ? `, zuletzt ${new Date(sync.at).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })} Uhr` : ''}.`}</p>`
-    : '<p class="note">Am Handy eintragen geht über den Schnee-Alarm (Knopf „Protokoll“). Ohne Alarm hier eintragen.</p>'
+    : '<p class="note">Am Handy eintragen: über „Protokoll-Links für Fahrer“ bekommt jede Person einen dauerhaften Link (Objekt oder Adresse, Foto). Mit dem Schnee-Alarm kommt der Link zusätzlich in der Benachrichtigung.</p>'
   return `<section class="wx-loc wx-log"><h3>${ICON.check} Winterdienst-Protokoll <span class="muted">(14 Tage)</span></h3>
     <p class="note">Nachweis: wer wann wo geräumt und gestreut hat (§ 93 StVO). Fehlt nach dem Einsatz ein Protokoll, steht es unter „Zu erledigen“.</p>
     ${list.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Objekt</th><th>Protokoll</th><th></th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="muted">Noch kein Winterdienst in den letzten 14 Tagen.</p>'}
     ${syncLine}
-    <div class="toolbar">${ed ? `<button class="btn" data-action="winterlog-add">${ICON.plus} Eintragen</button>` : ''}${a.enabled ? `<button class="btn" data-action="winterlog-sync">${ICON.refresh} Vom Handy holen</button>` : ''}
+    ${drivers.length ? `<p class="note wx-drivers-line">Protokoll-Link am Handy: ${esc(drivers.map((d) => d.name).join(', '))}.${a.transferred ? '' : ' <strong>Noch nicht an den Webspace übertragen.</strong>'}</p>` : ''}
+    <div class="toolbar">${ed ? `<button class="btn" data-action="winterlog-add">${ICON.plus} Eintragen</button>` : ''}${ed ? `<button class="btn" data-action="wx-drivers-open">${ICON.users} Protokoll-Links für Fahrer${drivers.length ? ` (${drivers.length})` : ''}</button>` : ''}${phones ? `<button class="btn" data-action="winterlog-sync">${ICON.refresh} Vom Handy holen</button>` : ''}
       <label class="field inline"><span>PDF</span><select id="wl-month">${options(months.map((m) => [m, `${MONTH_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`]), months[0])}</select></label><label class="field inline"><span>für</span><select id="wl-pdf-obj"><option value="">alle Objekte (intern)</option>${options(pdfObjects().map((o) => [o.id, o.name]))}</select></label><button class="btn" data-action="winterlog-pdf">${ICON.sheet || ''} PDF-Nachweis</button><button class="btn" data-action="mail-export" data-of="winterlog-pdf" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></div>
   </section>`
 }
@@ -217,14 +241,16 @@ function addModal(c, m) {
     body: `<div class="form-grid">
       <label class="field"><span>Tag</span><input type="date" id="wl-date" value="${esc(date)}"></label>
       <label class="field"><span>Erledigt um</span><input type="time" id="wl-time" value="${esc(m.time || timeOf(new Date().toISOString()))}"></label>
-      <label class="field wide"><span>Objekt</span><select id="wl-obj">${options(list.map((o) => [o.id, `${o.name}${o.address ? `, ${o.address}` : ''}`]), objectId, { empty: '– wählen –' })}</select></label>
+      <label class="field wide"><span>Objekt</span><select id="wl-obj" data-change="winterlog-redraw">${options([...list.map((o) => [o.id, `${o.name}${o.address ? `, ${o.address}` : ''}`]), ['-', '– andere Adresse (unten eintragen) –']], m.address !== undefined && !objectId ? '-' : objectId, { empty: '– wählen –' })}</select></label>
+      ${m.address !== undefined && !objectId ? `<label class="field wide"><span>Adresse</span><input type="text" id="wl-address" maxlength="160" value="${esc(m.address || '')}" placeholder="z. B. Musterstraße 5, 5020 Salzburg" autocomplete="off"></label>` : ''}
       <label class="field wide"><span>Durchgeführt von</span><select id="wl-emp">${options(people, emp, { empty: '– wählen –' })}</select></label>
-      <label class="check"><input type="checkbox" id="wl-geraeumt" checked><span>Geräumt</span></label>
-      <label class="check"><input type="checkbox" id="wl-gestreut" checked><span>Gestreut</span></label>
-      <label class="check"><input type="checkbox" id="wl-kontrolle"><span>Nur kontrolliert, nichts nötig</span></label>
-      <label class="field"><span>Streumittel</span><select id="wl-mittel">${options(STREUMITTEL.map((x) => [x, x || '–']), 'Splitt')}</select></label>
-      <label class="field wide"><span>Notiz</span><input type="text" id="wl-notiz" maxlength="500" placeholder="z. B. Eisplatte beim Eingang, nachstreuen"></label>
-    </div><p class="note">Fotos gehen am Handy über den Link „Protokoll“ aus dem Schnee-Alarm.</p>`,
+      <label class="check"><input type="checkbox" id="wl-geraeumt" ${m.geraeumt ?? true ? 'checked' : ''}><span>Geräumt</span></label>
+      <label class="check"><input type="checkbox" id="wl-gestreut" ${m.gestreut ?? true ? 'checked' : ''}><span>Gestreut</span></label>
+      <label class="check"><input type="checkbox" id="wl-kontrolle" ${m.kontrolle ? 'checked' : ''}><span>Nur kontrolliert, nichts nötig</span></label>
+      <label class="field"><span>Streumittel</span><select id="wl-mittel">${options(STREUMITTEL.map((x) => [x, x || '–']), m.mittel ?? 'Splitt')}</select></label>
+      <label class="field wide"><span>Notiz</span><input type="text" id="wl-notiz" maxlength="500" value="${esc(m.notiz || '')}" placeholder="z. B. Eisplatte beim Eingang, nachstreuen"></label>
+      <label class="field wide"><span>Fotos (optional, bis zu 4)</span><input type="file" id="wl-fotos" accept="image/*" capture="environment" multiple></label>
+    </div><p class="note">${app.store?.kind === 'sharepoint' ? 'Fotos werden verkleinert und in SharePoint abgelegt (exporte/Winterdienst/Monat). Am Handy der Fahrer geht dasselbe über ihren Protokoll-Link, ohne Anmeldung.' : 'Im Browser-Modus werden Fotos nicht gespeichert (nur im Betrieb mit SharePoint).'}</p>`,
     foot: `<span></span><div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="winterlog-save">Speichern</button></div>`,
   })
 }
@@ -318,15 +344,36 @@ registerActions({
 
 registerActions(
   {
-    'winterlog-add': (el) => openModal({ type: 'winterlog-add', date: el.dataset.date, objectId: el.dataset.obj, emp: el.dataset.emp }),
+    'winterlog-add': (el) => openModal({ type: 'winterlog-add', date: el.dataset.date, objectId: el.dataset.obj, emp: el.dataset.emp, ...(el.dataset.address !== undefined ? { address: el.dataset.address } : {}) }),
+    // Auswahl „andere Adresse“: Adressfeld zeigen bzw. wegnehmen (die übrigen Eingaben bleiben)
+    'winterlog-redraw': () => {
+      const m = app.ui.modal
+      if (m?.type !== 'winterlog-add') return
+      const pick = val('wl-obj')
+      const wantsFree = pick === '-'
+      const hasFree = !!document.getElementById('wl-address')
+      // nur neu zeichnen, wenn das Adressfeld kommt oder geht (sonst gingen gewählte Fotos verloren)
+      if (wantsFree === hasFree) return
+      Object.assign(m, { date: val('wl-date'), time: val('wl-time'), emp: val('wl-emp'), objectId: wantsFree ? '' : pick, geraeumt: checked('wl-geraeumt'), gestreut: checked('wl-gestreut'), kontrolle: checked('wl-kontrolle'), mittel: val('wl-mittel'), notiz: val('wl-notiz') })
+      if (wantsFree) m.address = m.address ?? ''
+      else delete m.address
+      renderModal()
+      if (wantsFree) document.getElementById('wl-address')?.focus()
+    },
     'winterlog-save': async () => {
       const date = val('wl-date')
-      const objectId = val('wl-obj')
+      const free = val('wl-obj') === '-'
+      const objectId = free ? '' : val('wl-obj')
+      const address = free ? val('wl-address').replace(/\s+/g, ' ').trim().slice(0, 160) : ''
       const time = val('wl-time')
       const geraeumt = checked('wl-geraeumt')
       const gestreut = checked('wl-gestreut')
       const kontrolle = checked('wl-kontrolle')
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !objectId) return toast('Bitte Tag und Objekt wählen.')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (!objectId && !free)) return toast('Bitte Tag und Objekt wählen.')
+      if (free && address.length < 5) return toast('Bitte die Adresse eintragen (Straße, Hausnummer, Ort).')
+      const files = [...(document.getElementById('wl-fotos')?.files || [])]
+      if (files.length > 4) return toast('Höchstens 4 Fotos je Eintrag.')
+      if (files.some((f) => !/^image\//.test(f.type) || f.size > 15e6)) return toast('Fotos bitte als Bild, höchstens 15 MB je Foto.')
       if (!/^\d{2}:\d{2}$/.test(time)) return toast('Bitte die Uhrzeit eintragen.')
       if (!geraeumt && !gestreut && !kontrolle) return toast('Bitte ankreuzen: geräumt, gestreut oder nur kontrolliert.')
       await app.service.ensureWeeks([mondayOf(date)]).catch(() => {})
@@ -335,8 +382,8 @@ registerActions(
         id: uid('a'),
         date,
         objectId,
-        object: o?.name || '',
-        address: o?.address || '',
+        object: free ? address : o?.name || '',
+        address: free ? address : o?.address || '',
         person: empName(val('wl-emp')),
         at: new Date(viennaTime(date, time)).toISOString(),
         geraeumt,
@@ -350,12 +397,28 @@ registerActions(
         by: app.user?.name || 'Browser',
         entered: new Date().toISOString(),
       }
+      // Fotos: verkleinern und nach SharePoint (exporte/Winterdienst/<Monat>/…); im Browser-Modus gibt es keine Ablage
+      let failed = 0
+      if (files.length && app.store?.kind === 'sharepoint') {
+        const hex = [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('')
+        for (const [i, file] of files.entries()) {
+          try {
+            const datei = photoName(hex, i + 1)
+            const path = photoPath(e, datei, e.object)
+            const up = await app.store.upload(path, await shrinkPhoto(file), 'image/jpeg')
+            e.fotos.push({ datei, pfad: path, url: up?.webUrl || '', ...(up?.queued ? { wartet: true } : {}), webspaceGeloescht: true })
+          } catch {
+            failed++
+          }
+        }
+      }
       recordUndo('Winterdienst-Protokoll')
       logOf()[logKey(e)] = e
       persist()
       closeModal()
       renderNow()
-      toast(`Protokoll gespeichert: ${o?.short || o?.name || ''} ${formatDate(date)} ${time} Uhr.`)
+      const fotoText = e.fotos.length ? `, ${e.fotos.length} ${e.fotos.length === 1 ? 'Foto' : 'Fotos'}` : ''
+      toast(`Protokoll gespeichert: ${free ? address : o?.short || o?.name || ''} ${formatDate(date)} ${time} Uhr${fotoText}.${failed ? ` ${failed} ${failed === 1 ? 'Foto wurde' : 'Fotos wurden'} nicht hochgeladen.` : files.length && app.store?.kind !== 'sharepoint' ? ' Fotos gibt es nur im Betrieb mit SharePoint.' : ''}`)
     },
     'winterlog-delete': (el) => {
       const key = el.dataset.key
