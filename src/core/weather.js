@@ -415,6 +415,8 @@ export const ALARM_DEFAULTS = {
   leadHours: 3, // so weit voraus wecken (Schneefall in den nächsten Stunden)
   snowCm: 0.3, // Schneefall ab so viel je Stunde
   escalateMin: 15, // ohne „Bin wach“ nach so vielen Minuten an Stufe 2
+  repeatMin: 3, // bis jemand bestätigt: Push alle so viele Minuten wiederholen (0 = aus; der Cronjob muss so oft laufen)
+  repeats: 5, // höchstens so oft wiederholen
   pauseHours: 8, // ein Ort meldet sich höchstens so oft neu (außer die Warnstufe steigt)
   quietFrom: '', // Ruhezeit (optional), Warnung orange/rot weckt trotzdem
   quietTo: '',
@@ -498,7 +500,33 @@ export function alarmPlace(alarm, place, objects, locations) {
   const at = winterAt(place, objects, locations)
   // ohne eigene Einstellung: nur Orte mit Winterdienst-Objekten (sonst nächtliche Alarme an niemanden)
   const active = own ? own.active !== false : at.objects.length > 0
-  return { active, level1: own?.level1 ?? at.team, level2: own?.level2 ?? [], rotate: !!own?.rotate }
+  return {
+    active,
+    level1: own?.level1 ?? at.team,
+    level2: own?.level2 ?? [],
+    rotate: !!own?.rotate,
+    // nur, wenn für den Ort eingestellt: welche Lage weckt, wer welche Alarme bekommt, eigene Regeln
+    ...(own?.types ? { types: { ...own.types } } : {}),
+    ...(own?.bei && Object.keys(own.bei).length ? { bei: { ...own.bei } } : {}),
+    ...(own?.rules && Object.keys(own.rules).length ? { rules: { ...own.rules } } : {}),
+  }
+}
+
+/** Was an einem Ort wecken kann: Schneefall, Glätte, Warnung von GeoSphere (Schnee, Glatteis). */
+export const ALARM_TYPES = { schnee: 'Schneefall', glaette: 'Glätte', warnung: 'Warnung von GeoSphere' }
+/** Welche Alarme eine Person an einem Ort bekommt (leer: alle). */
+export const ALARM_FOR = { '': 'alle Alarme', schnee: 'nur Schnee (Räumen)', glaette: 'nur Glätte (Streuen)' }
+
+/** Eigene Regeln eines Orts → Schlüssel des Webspace (nur gesetzte, gültige Werte). */
+export function placeRules(rules = {}) {
+  const out = {}
+  const num = (v, min, max) => (v === '' || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Math.min(max, Math.max(min, Number(v))))
+  const time = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null)
+  if (num(rules.leadHours, 1, 12) !== null) out.vorlaufStunden = num(rules.leadHours, 1, 12)
+  if (num(rules.snowCm, 0.1, 10) !== null) out.schneeCm = num(rules.snowCm, 0.1, 10)
+  if (num(rules.escalateMin, 5, 240) !== null) out.eskalationMinuten = Math.round(num(rules.escalateMin, 5, 240))
+  if (time(rules.quietFrom) && time(rules.quietTo)) Object.assign(out, { ruheVon: rules.quietFrom, ruheBis: rules.quietTo })
+  return out
 }
 
 /**
@@ -521,7 +549,7 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
   const until = new Date(Date.parse(`${today}T12:00:00Z`) + 60 * 86400e3).toISOString().slice(0, 10)
   const away = (id) => absences.filter((a) => a.employeeId === id && a.to >= today && a.from <= until).map((a) => [a.from, a.to])
   const a = { ...ALARM_DEFAULTS, ...alarm }
-  const person = (id, withEmail) => {
+  const person = (id, withEmail, bei = '') => {
     const e = employees.find((x) => x.id === id)
     // ausgeschieden (Austritt vorbei): nicht mehr wecken, auch wenn noch im Winterteam eingetragen
     if (!e || (e.exitDate && e.exitDate < today)) return null
@@ -533,6 +561,8 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     if (a.whatsapp?.[id] && waNumber(e.phone)) out.whatsapp = waNumber(e.phone)
     // Sprache aus dem Stammblatt: Knöpfe der Push-Nachricht, Seiten „Bin wach“ und Protokoll (wetter-alarm.php)
     if (e.lang && e.lang !== 'de') out.sprache = e.lang
+    // welche Alarme die Person an diesem Ort bekommt (nur Stufe 1): schnee = Räumen, glaette = Streuen
+    if (bei === 'schnee' || bei === 'glaette') out.bei = bei
     const off = away(id)
     if (off.length) out.abwesend = off
     return out.ntfy || out.email || out.sms || out.whatsapp ? out : null
@@ -553,7 +583,9 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
       // mit Kennung und Adresse: das Protokoll am Handy ordnet die Einträge dem Objekt zu
       objekte: winterAt(loc, objects, locations).objects.map((o) => ({ id: o.id, name: o.name, adresse: o.address || '' })),
       ...(set.rotate && set.level1.length > 1 ? { wechsel: 'woche' } : {}),
-      stufe1: set.level1.map((id) => person(id, a.emailLevel1)).filter(Boolean),
+      ...(set.types && Object.keys(ALARM_TYPES).some((k) => set.types[k] === false) ? { arten: Object.keys(ALARM_TYPES).filter((k) => set.types[k] !== false) } : {}),
+      ...(Object.keys(placeRules(set.rules)).length ? { regeln: placeRules(set.rules) } : {}),
+      stufe1: set.level1.map((id) => person(id, a.emailLevel1, set.rotate ? '' : set.bei?.[id])).filter(Boolean),
       stufe2: [...set.level2.map((id) => person(id, true)).filter(Boolean), ...office],
     }))
   // dauerhafte Protokoll-Links der Fahrer (ohne Alarm) und alle Objekte mit Winterdienst für deren Formular
@@ -571,7 +603,7 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     adresse: address,
     ntfy: a.ntfy || ALARM_DEFAULTS.ntfy,
     absender: a.sender || '',
-    regeln: { vorlaufStunden: Number(a.leadHours), schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2 },
+    regeln: { vorlaufStunden: Number(a.leadHours), schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2, wiederholenMinuten: Math.max(0, Number(a.repeatMin ?? ALARM_DEFAULTS.repeatMin) || 0), wiederholungen: Math.max(0, Math.round(Number(a.repeats ?? ALARM_DEFAULTS.repeats) || 0)) },
     orte,
     // nur mit Fahrern: ohne sie bleibt die Datei, wie sie war
     ...(fahrer.length ? { fahrer, winterObjekte } : {}),

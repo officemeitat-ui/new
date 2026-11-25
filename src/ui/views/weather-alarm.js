@@ -14,7 +14,7 @@
 // nie in den Daten der App; hier liegt nur, wer per WhatsApp geweckt wird (alarm.whatsapp, alarm.officeWhatsapp).
 
 import { addDays, todayISO } from '../../core/dates.js'
-import { ALARM_DEFAULTS, alarmDrivers, alarmFile, alarmInvite, alarmPlace, alarmProblems, alarmSetupLink, driverLink, findPlace, onCallIndex, phoneState, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
+import { ALARM_DEFAULTS, ALARM_FOR, ALARM_TYPES, alarmDrivers, alarmFile, alarmInvite, alarmPlace, alarmProblems, alarmSetupLink, driverLink, findPlace, onCallIndex, phoneState, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
 import { waNumber } from '../../core/whatsapp.js'
 import { langOf } from '../../core/sprachen.js'
 import { alarmSetupDocument } from '../../export/qr-pdf.js'
@@ -174,7 +174,8 @@ export function alarmCard() {
         info.push(`<span class="pill ${wach ? 'ok' : alarm.test ? 'info' : 'error'}">${alarm.test ? 'Testalarm' : 'Alarm'} ${dateTime(alarm.gesendet)}${wach ? `, wach: ${wach}` : ', noch niemand bestätigt'}${alarm.eskaliert ? ', Stufe 2 alarmiert' : ''}</span>`)
       }
       const duty = onCall(set)
-      return `<li><strong>${esc(loc.name)}</strong>: ${duty ? `Bereitschaft diese Woche ${esc(empById(duty.now).name)} <span class="muted">(nächste: ${esc(empById(duty.next).name)})</span>` : esc(names(set.level1) || 'niemand in Stufe 1')}${set.level2.length || a.topics?.office || a.officeEmails ? ` <span class="muted">· Stufe 2: ${esc([names(set.level2), a.topics?.office || a.officeEmails ? 'Büro' : ''].filter(Boolean).join(', '))}</span>` : ''} ${info.join(' ')}</li>`
+      const only = set.types && Object.values(set.types).some((v) => v === false) ? ` <span class="muted">(nur ${esc(Object.keys(ALARM_TYPES).filter((k) => set.types[k] !== false).map((k) => ALARM_TYPES[k]).join(', '))})</span>` : ''
+      return `<li><strong>${esc(loc.name)}</strong>${only}: ${duty ? `Bereitschaft diese Woche ${esc(empById(duty.now).name)} <span class="muted">(nächste: ${esc(empById(duty.next).name)})</span>` : esc(names(set.level1) || 'niemand in Stufe 1')}${set.level2.length || a.topics?.office || a.officeEmails ? ` <span class="muted">· Stufe 2: ${esc([names(set.level2), a.topics?.office || a.officeEmails ? 'Büro' : ''].filter(Boolean).join(', '))}</span>` : ''} ${info.join(' ')}</li>`
     })
     .join('')
   const last = st?.letztePruefung
@@ -184,7 +185,7 @@ export function alarmCard() {
     : !st
       ? `<p class="note">${status.loading ? 'Frage den Webspace …' : ''}</p>`
       : !last
-        ? '<div class="banner warn-banner"><p><strong>Noch keine Prüfung am Webspace.</strong> Den Cronjob einrichten (alle 10 Minuten), siehe „Alarm einrichten“ → Webspace.</p></div>'
+        ? '<div class="banner warn-banner"><p><strong>Noch keine Prüfung am Webspace.</strong> Den Cronjob einrichten (alle 2 bis 5 Minuten), siehe „Alarm einrichten“ → Webspace.</p></div>'
         : `<p class="${stale ? '' : 'note'}">${stale ? `<span class="pill error">Letzte Prüfung ${ago(last)}: läuft der Cronjob?</span>` : `Webspace prüfte zuletzt ${time(last)} Uhr (${ago(last)}).`}</p>`
   return `<section class="wx-loc wx-alarm"><h3>${ICON.bell} Schnee-Alarm <span class="muted">(ein)</span></h3>
     <ul class="wx-alarm-list">${rows}</ul>${server}
@@ -230,13 +231,22 @@ function readForm() {
   d.enabled = checked('al-enabled')
   d.locations.forEach((loc, i) => {
     const pick = (lvl) => [...document.querySelectorAll(`input[name="al-p${i}-l${lvl}"]:checked`)].map((el) => el.value)
-    d.places[loc.name] = { active: checked(`al-p${i}-active`), level1: pick(1), level2: pick(2), rotate: checked(`al-p${i}-rotate`) }
+    const bei = Object.fromEntries([...document.querySelectorAll(`select.al-bei[data-place="${i}"]:not([disabled])`)].filter((el) => el.value).map((el) => [el.dataset.emp, el.value]))
+    const prev = d.places[loc.name] || {}
+    const types = document.getElementById(`al-p${i}-t-schnee`) ? Object.fromEntries(Object.keys(ALARM_TYPES).map((k) => [k, checked(`al-p${i}-t-${k}`)])) : prev.types
+    const numOrEmpty = (id) => (document.getElementById(id) && val(id).trim() !== '' && Number.isFinite(Number(val(id))) ? Number(val(id)) : '')
+    const rules = document.getElementById(`al-p${i}-r-snow`)
+      ? Object.fromEntries(Object.entries({ snowCm: numOrEmpty(`al-p${i}-r-snow`), leadHours: numOrEmpty(`al-p${i}-r-lead`), escalateMin: numOrEmpty(`al-p${i}-r-esc`), quietFrom: val(`al-p${i}-r-qfrom`), quietTo: val(`al-p${i}-r-qto`) }).filter(([, v]) => v !== ''))
+      : prev.rules
+    d.places[loc.name] = { active: checked(`al-p${i}-active`), level1: pick(1), level2: pick(2), rotate: checked(`al-p${i}-rotate`), ...(types && Object.values(types).some((v) => v === false) ? { types } : {}), ...(Object.keys(bei).length ? { bei } : !document.querySelector(`select.al-bei[data-place="${i}"]:not([disabled])`) && prev.bei ? { bei: prev.bei } : {}), ...(rules && Object.keys(rules).length ? { rules } : {}) }
   })
   const n = (id, fallback) => (num(id) === null ? fallback : num(id))
   Object.assign(d, {
     leadHours: Math.min(12, Math.max(1, n('al-lead', ALARM_DEFAULTS.leadHours))),
     snowCm: Math.max(0.1, n('al-snow', ALARM_DEFAULTS.snowCm)),
     escalateMin: Math.max(5, Math.round(n('al-escalate', ALARM_DEFAULTS.escalateMin))),
+    repeatMin: Math.min(30, Math.max(0, Math.round(n('al-repeat', ALARM_DEFAULTS.repeatMin)))),
+    repeats: Math.min(20, Math.max(0, Math.round(n('al-repeats', ALARM_DEFAULTS.repeats)))),
     pauseHours: Math.max(1, n('al-pause', ALARM_DEFAULTS.pauseHours)),
     quietFrom: val('al-quietfrom'),
     quietTo: val('al-quietto'),
@@ -403,7 +413,26 @@ function personRow(i, id, set, team) {
   if (!e) return ''
   return `<tr><td>${esc(e.name)}${team.includes(id) ? ' <span class="tag">Team</span>' : ''}</td>
     <td class="num"><input type="checkbox" name="al-p${i}-l1" value="${esc(id)}" ${set.level1.includes(id) ? 'checked' : ''} aria-label="${esc(e.name)} Stufe 1"></td>
-    <td class="num"><input type="checkbox" name="al-p${i}-l2" value="${esc(id)}" ${set.level2.includes(id) ? 'checked' : ''} aria-label="${esc(e.name)} Stufe 2"></td></tr>`
+    <td class="num"><input type="checkbox" name="al-p${i}-l2" value="${esc(id)}" ${set.level2.includes(id) ? 'checked' : ''} aria-label="${esc(e.name)} Stufe 2"></td>
+    <td><select class="al-bei" data-place="${i}" data-emp="${esc(id)}" aria-label="${esc(e.name)}: welche Alarme" ${set.rotate ? 'disabled title="Bei wöchentlichem Wechsel bekommt die Person der Woche alle Alarme"' : ''}>${options(Object.entries(ALARM_FOR), set.rotate ? '' : set.bei?.[id] || '')}</select></td></tr>`
+}
+
+/** Je Ort: was weckt (Schneefall, Glätte, Warnung) und eigene Regeln; leer = wie unter „Wann wecken“. */
+function placeOptions(i, set, d) {
+  const types = Object.entries(ALARM_TYPES)
+    .map(([k, label]) => `<label class="check"><input type="checkbox" id="al-p${i}-t-${k}" ${set.types?.[k] === false ? '' : 'checked'}><span>${esc(label)}</span></label>`)
+    .join(' ')
+  const r = set.rules || {}
+  const own = Object.values(r).some((v) => v !== '' && v !== null && v !== undefined)
+  return `<div class="al-types"><span class="muted">Alarm bei:</span> ${types}</div>
+    <details class="al-rules"${own ? ' open' : ''}><summary>Eigene Regeln für diesen Ort${own ? ' (eingestellt)' : ''}</summary>
+      <div class="form-grid">
+        <label class="field"><span>Schneefall ab (cm je Stunde)</span><input type="number" id="al-p${i}-r-snow" step="0.1" min="0.1" value="${esc(r.snowCm ?? '')}" placeholder="wie oben: ${esc(d.snowCm)}"></label>
+        <label class="field"><span>So weit voraus (Stunden)</span><input type="number" id="al-p${i}-r-lead" step="1" min="1" max="12" value="${esc(r.leadHours ?? '')}" placeholder="wie oben: ${esc(d.leadHours)}"></label>
+        <label class="field"><span>Stufe 2 nach (Minuten)</span><input type="number" id="al-p${i}-r-esc" step="5" min="5" value="${esc(r.escalateMin ?? '')}" placeholder="wie oben: ${esc(d.escalateMin)}"></label>
+        <label class="field"><span>Ruhezeit von</span><input type="time" id="al-p${i}-r-qfrom" value="${esc(r.quietFrom || '')}"></label>
+        <label class="field"><span>Ruhezeit bis</span><input type="time" id="al-p${i}-r-qto" value="${esc(r.quietTo || '')}"></label>
+      </div><p class="note">Leere Felder gelten wie unter „Wann wecken“. Z. B. ein Ort mit Hanglage früher wecken (mehr Stunden voraus) oder ein Ort mit Firmen-Parkplatz schon ab wenig Schnee.</p></details>`
 }
 
 function alarmModal() {
@@ -416,7 +445,8 @@ function alarmModal() {
       const people = [...new Set([...team, ...set.level1, ...set.level2])]
       const others = app.data.employees.filter((e) => !people.includes(e.id)).map((e) => [e.id, e.name])
       return `<section class="al-place"><h3><label class="check"><input type="checkbox" id="al-p${i}-active" ${set.active ? 'checked' : ''}><span>${esc(loc.name)}</span></label> <span class="muted">${objects.length ? `${objects.length} ${objects.length === 1 ? 'Objekt' : 'Objekte'} mit Winterdienst: ${esc(objects.map((o) => o.short || o.name).join(', '))}` : 'kein Objekt mit Winterdienst (beim Objekt „Ort“ wählen)'}</span></h3>
-        ${people.length ? `<div class="table-wrap"><table class="data al-people"><thead><tr><th>Person</th><th class="num">Stufe 1 (wecken)</th><th class="num">Stufe 2 (nach ${esc(d.escalateMin)} min)</th></tr></thead><tbody>${people.map((id) => personRow(i, id, set, team)).join('')}</tbody></table></div>` : '<p class="muted">Noch niemand: Person hinzufügen oder beim Objekt ein Winterdienst-Team eintragen.</p>'}
+        ${people.length ? `<div class="table-wrap"><table class="data al-people"><thead><tr><th>Person</th><th class="num">Stufe 1 (wecken)</th><th class="num">Stufe 2 (nach ${esc(set.rules?.escalateMin || d.escalateMin)} min)</th><th>Bekommt</th></tr></thead><tbody>${people.map((id) => personRow(i, id, set, team)).join('')}</tbody></table></div>` : '<p class="muted">Noch niemand: Person hinzufügen oder beim Objekt ein Winterdienst-Team eintragen.</p>'}
+        ${placeOptions(i, set, d)}
         <label class="check"><input type="checkbox" id="al-p${i}-rotate" data-change="wx-alarm-redraw" ${set.rotate ? 'checked' : ''}><span>Stufe 1 wechselt wöchentlich (je Woche eine Person, Reihenfolge wie oben, Wechsel montags)${onCall(set) ? `: diese Woche <strong>${esc(empById(onCall(set).now).name)}</strong>, nächste ${esc(empById(onCall(set).next).name)}` : ''}</span></label>
         ${set.active && set.level1.length ? `<p class="note">${set.rotate && set.level1.length >= 4 ? 'Rufbereitschaft wechselt: je Person höchstens rund eine Woche im Monat.' : `Wer in Stufe 1 steht, ist in Rufbereitschaft (§ 20a AZG: außerhalb der Arbeitszeit höchstens an 10 Tagen im Monat, laut KV bis 30 Tage in 3 Monaten). ${set.rotate ? 'Mit weniger als 4 Personen kann jemand über 10 Tage im Monat kommen.' : 'Ohne Wechsel sind alle jede Nacht in Bereitschaft: wöchentlich wechseln (ab 4 Personen) oder schriftlich regeln.'}`}</p>` : ''}
         <div class="inline-form" style="border:0;padding:0"><label class="field"><span>Person hinzufügen</span><select id="al-p${i}-add">${options(others, '', { empty: '– wählen –' })}</select></label><button class="btn small" data-action="wx-alarm-person" data-idx="${i}">${ICON.plus} Hinzufügen</button></div>
@@ -473,6 +503,8 @@ function alarmModal() {
         <label class="field"><span>Schneefall ab (cm je Stunde)</span><input type="number" id="al-snow" step="0.1" min="0.1" value="${esc(d.snowCm)}"></label>
         <label class="field"><span>So weit voraus (Stunden)</span><input type="number" id="al-lead" step="1" min="1" max="12" value="${esc(d.leadHours)}"></label>
         <label class="field"><span>Stufe 2 nach (Minuten ohne „Bin wach“)</span><input type="number" id="al-escalate" step="5" min="5" value="${esc(d.escalateMin)}"></label>
+        <label class="field"><span>Weckruf wiederholen alle (Minuten, 0 = aus)</span><input type="number" id="al-repeat" step="1" min="0" max="30" value="${esc(d.repeatMin ?? ALARM_DEFAULTS.repeatMin)}"><small class="muted">Bis jemand „Bin wach“ tippt, kommt der Push noch einmal (nur Push, ohne Kosten).</small></label>
+        <label class="field"><span>Höchstens so oft wiederholen</span><input type="number" id="al-repeats" step="1" min="0" max="20" value="${esc(d.repeats ?? ALARM_DEFAULTS.repeats)}"></label>
         <label class="field"><span>Neuer Alarm frühestens nach (Stunden)</span><input type="number" id="al-pause" step="1" min="1" value="${esc(d.pauseHours)}"></label>
         <label class="field"><span>Ruhezeit von (optional)</span><input type="time" id="al-quietfrom" value="${esc(d.quietFrom || '')}"></label>
         <label class="field"><span>Ruhezeit bis</span><input type="time" id="al-quietto" value="${esc(d.quietTo || '')}"><small class="muted">In der Ruhezeit wird erst am Ende geweckt; Warnung orange oder rot weckt sofort.</small></label>
@@ -482,7 +514,7 @@ function alarmModal() {
         <label class="field"><span>Absender der E-Mails</span><input type="email" id="al-sender" value="${esc(d.sender || '')}" placeholder="z. B. winterdienst@…"></label>
         <label class="field"><span>ntfy-Server</span><input type="url" id="al-ntfy" value="${esc(ntfy)}"></label>
       </div>
-      <p class="note"><strong>Einmalig:</strong> „Alarm-Datei herunterladen“ und die Datei per FTP in den Ordner <code>privat/</code> der App laden (der Ordner ist gesperrt). Danach überträgt „Speichern und übertragen“ jede Änderung direkt. <strong>Cronjob</strong> alle 10 Minuten: am Webspace <code>php wetter-alarm.php</code> im Ordner der App, oder ein Cron-Dienst ruft diese Adresse auf:</p>
+      <p class="note"><strong>Einmalig:</strong> „Alarm-Datei herunterladen“ und die Datei per FTP in den Ordner <code>privat/</code> der App laden (der Ordner ist gesperrt). Danach überträgt „Speichern und übertragen“ jede Änderung direkt. <strong>Cronjob</strong> alle 2 bis 5 Minuten (höchstens alle 10; so oft kann auch der Weckruf wiederholt werden): am Webspace <code>php wetter-alarm.php</code> im Ordner der App, oder ein Cron-Dienst ruft diese Adresse auf:</p>
       <p><code class="wrap">${esc(cron)}</code> ${d.cronKey ? `<button class="btn small" data-action="wx-alarm-copy" data-text="${esc(cron)}">Adresse kopieren</button>` : ''}</p>`,
     foot: `<button class="btn" data-action="wx-alarm-download">Alarm-Datei herunterladen</button>
       <div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn" data-action="wx-alarm-save">Speichern</button><button class="btn primary" data-action="wx-alarm-save" data-send="1">Speichern und übertragen</button></div>`,

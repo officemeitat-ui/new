@@ -18,6 +18,8 @@
 //     Passwort (kommt nie zurück), Probe, falsches Passwort, Wechsel des Weges, Alarm als SMS über das Handy.
 // 10. „Handy einrichten“: Seite in der Sprache der Person mit Link ntfy://, Probe von der Seite und aus der App (alle Wege,
 //     ohne Protokoll-Knopf), Grenze je Stunde, „Bin wach“ zur Probe, Stand „bereit“ je Thema (auch nach einem Alarm).
+// 11. Verschiedene Personen, Orte und Alarme: je Person „nur Schnee“ bzw. „nur Glätte“, je Ort, was weckt und eigene Regeln
+//     (Schneefall ab, so weit voraus); Weckruf wiederholen, bis jemand bestätigt (nur Push, dieselben Codes, höchstens n-mal).
 // Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP), 19835 (SMS-Dienst), 19841 (SMS-Gateway).
 import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -68,6 +70,14 @@ const SZENEN = {
   ruhe: { Salzburg: { wert: snowAt([5, 6, 7, 8]), warn: [orange] }, Seekirchen: { wert: snowAt([6, 7]) }, Anif: { warn: [{ ...orange, warntypid: 4, rawinfo: { start: hour(3), end: hour(9) } }] } },
   aus: { Salzburg: 'aus', Seekirchen: { wert: snowAt([6, 7]) } },
   mittag: { Obertrum: { wert: (at) => (at === hour(13) ? { t: -1, tp: 0.4, sf: 0 } : still()) } },
+  // Tag 2 (11.12.): Schnee in Salzburg, wenig Schnee in Hallein, Glätte in Obertrum und Seekirchen, später Schnee in Anif
+  tag2: {
+    Salzburg: { wert: snowAt([28, 29]) },
+    Hallein: { wert: snowAt([27, 28]) },
+    Obertrum: { wert: (at) => (at === hour(27) ? { t: -1, tp: 0.4, sf: 0 } : still()) },
+    Seekirchen: { wert: (at) => (at === hour(27) ? { t: -1, tp: 0.4, sf: 0 } : still()) },
+    Anif: { wert: snowAt([29]) },
+  },
 }
 const wetterAnfragen = []
 const wetter = createServer((req, res) => {
@@ -218,7 +228,8 @@ const einstellungen = (regeln = {}) => ({
   adresse: `http://127.0.0.1:${HTTP}/`,
   ntfy: `http://127.0.0.1:${NTFY}`,
   absender: 'winterdienst@cleanos.example',
-  regeln: { vorlaufStunden: 3, schneeCm: 0.3, pauseStunden: 8, eskalationMinuten: 15, ruheVon: '', ruheBis: '', ruheAusnahmeStufe: 2, ...regeln },
+  // Wiederholen hier aus (die Abschnitte 1–10 zählen genaue Sendungen); Abschnitt 11 prüft es eigens
+  regeln: { vorlaufStunden: 3, schneeCm: 0.3, pauseStunden: 8, eskalationMinuten: 15, ruheVon: '', ruheBis: '', ruheAusnahmeStufe: 2, wiederholenMinuten: 0, ...regeln },
   orte: [
     { name: 'Salzburg', lat: 47.8095, lon: 13.055, objekte: [{ id: 'o5', name: 'Wohnanlage Lehen', adresse: 'Lehener Straße 1' }, { id: 'o2', name: 'Autohaus Maxglan', adresse: 'Autoweg 7' }], stufe1: [person.dragan, person.ana, person.mehmet], stufe2: buero },
     { name: 'Hallein', lat: 47.6833, lon: 13.097, objekte: [{ id: 'o9', name: 'Werkstatt Hallein', adresse: '' }], wechsel: 'woche', stufe1: [{ name: 'Erste Woche', ntfy: 'wd-h1' }, { name: 'Zweite Woche', ntfy: 'wd-h2' }], stufe2: [{ name: 'Büro', ntfy: 'wd-buero' }] },
@@ -517,6 +528,54 @@ try {
   check('Probe aus der App: unbekanntes Thema 404, ohne Schlüssel 403', (await api('probe', { method: 'POST', json: { thema: 'wd-niemand' } })).status === 404 && (await api('probe', { method: 'POST', key: '', json: { thema: 'wd-ana' } })).status === 403)
   r = await api('sms', { method: 'POST', json: { entfernen: true } })
   check('SMS über das Handy entfernt: Zugang gelöscht, Passwort liegt nirgends mehr', r.json.eingerichtet === false && !readdirSync(dir).some((f) => statSync(join(dir, f)).isFile() && readFileSync(join(dir, f), 'utf8').includes(GATE_PASS)))
+
+  // ---------------------------------------------------------------- 11. Personen, Orte, Alarme; Weckruf wiederholen
+  const vielfalt = einstellungen({ wiederholenMinuten: 3, wiederholungen: 2 })
+  vielfalt.orte[0].stufe1 = [{ name: 'Dragan Jović', ntfy: 'wd-dragan', bei: 'schnee', sprache: 'bks' }, { name: 'Mehmet Yılmaz', ntfy: 'wd-mehmet', bei: 'glaette' }]
+  vielfalt.orte[0].stufe2 = [{ name: 'Büro', ntfy: 'wd-buero' }]
+  vielfalt.orte[1] = { ...vielfalt.orte[1], regeln: { schneeCm: 5 }, stufe1: [{ name: 'Erste Woche', ntfy: 'wd-h1' }] }
+  delete vielfalt.orte[1].wechsel
+  vielfalt.orte[2].arten = ['schnee']
+  vielfalt.orte[3].stufe1 = [{ name: 'Petra Leitner', ntfy: 'wd-petra', bei: 'schnee' }, { name: 'Karl Streuer', ntfy: 'wd-karl', bei: 'glaette' }]
+  vielfalt.orte[4].regeln = { vorlaufStunden: 1 }
+  r = await api('speichern', { method: 'POST', json: vielfalt })
+  check('Einstellungen mit Regeln und Alarmen je Ort und Person übertragen', r.status === 200, JSON.stringify(r.json))
+  await neu()
+  const t1 = hour(26) + 600 // 11.12. 02:10
+  b = await cron(t1, 'tag2')
+  n = await neu()
+  const top = (x) => n.push.filter((p) => p.topic === x)
+  check('Salzburg, Schneefall: nur wer Schnee räumt (Dragan), nicht wer nur streut (Mehmet); sonst nur Seekirchen', n.push.length === 2 && top('wd-dragan').length === 1 && top('wd-mehmet').length === 0 && /^Schneefall ab 03:00 Uhr/.test(top('wd-dragan')[0].message), n.push.map((p) => p.topic).join(','))
+  check('Seekirchen, Glätte: nur wer streut (Karl), nicht wer nur räumt (Petra)', top('wd-karl').length === 1 && top('wd-petra').length === 0 && /^Glätte möglich/.test(top('wd-karl')[0].message))
+  check('Obertrum weckt nur bei Schnee: Glätte allein weckt dort niemanden (auch keine Erinnerung zum Alarm von gestern)', top('wd-jelena').length === 0 && b.orte.Obertrum.lage === 'ruhig' && b.orte.Obertrum.alarm === '10.12. 12:00', JSON.stringify(b.orte.Obertrum))
+  check('Hallein mit eigener Regel „Schneefall ab 5 cm“: 1,2 cm je Stunde wecken dort nicht', top('wd-h1').length === 0 && b.orte.Hallein.lage === 'ruhig', JSON.stringify(b.orte.Hallein))
+  check('Anif mit eigener Regel „1 Stunde voraus“: Schnee ab 04:00 weckt um 02:10 noch nicht; der Alarm von gestern bekommt keine Erinnerung', top('wd-anif').length === 0 && b.orte.Anif.lage === 'ruhig', JSON.stringify(b.orte.Anif))
+  const tokD = tokenOf(top('wd-dragan')[0])
+  b = await cron(t1 + 120, 'tag2')
+  n = await neu()
+  check('Nach 2 Minuten: noch keine Erinnerung (alle 3 Minuten)', !n.push.length)
+  b = await cron(t1 + 180, 'tag2')
+  n = await neu()
+  const rem = n.push.find((p) => p.topic === 'wd-dragan')
+  check('Nach 3 Minuten ohne „Bin wach“: Erinnerung an Dragan, mit demselben Code, nur Push', !!rem && rem.title === 'Erinnerung: Winterdienst Salzburg' && /Noch hat niemand bestätigt\./.test(rem.message) && rem.priority === 5 && tokenOf(rem) === tokD && !n.mail.length && !n.sms.length && !n.wa.length, JSON.stringify(rem || {}).slice(0, 300))
+  check('Erinnerung in der Sprache der Person (Knöpfe)', rem?.actions?.[0]?.label === 'Budan/na sam', rem?.actions?.[0]?.label)
+  check('Erinnerung auch an Karl in Seekirchen (eigener Alarm, eigenes Wiederholen)', n.push.some((p) => p.topic === 'wd-karl' && p.title === 'Erinnerung: Winterdienst Seekirchen'))
+  await cron(t1 + 360, 'tag2')
+  n = await neu()
+  check('Nach 6 Minuten: zweite Erinnerung', n.push.filter((p) => p.topic === 'wd-dragan' && /^Erinnerung/.test(p.title)).length === 1)
+  await cron(t1 + 540, 'tag2')
+  n = await neu()
+  check('Nach 9 Minuten: keine dritte (höchstens 2)', !n.push.some((p) => p.topic === 'wd-dragan'))
+  r = await api('wach', { method: 'POST', key: '', extra: `&t=${tokD}` })
+  check('„Bin wach“ mit dem Code aus der Erinnerung bestätigt den Alarm', r.status === 200 && /Hvala, Dragan Jović|Dragan Jović/.test(flat(r.text)))
+  await cron(t1 + 960, 'tag2')
+  n = await neu()
+  check('Bestätigt: keine Erinnerung und keine Stufe 2 in Salzburg; Seekirchen ohne Stufe 2 bleibt still', !n.push.some((p) => /Salzburg/.test(p.title)) && !n.push.some((p) => p.topic === 'wd-buero'), n.push.map((p) => p.title).join(' | '))
+  r = await api('status')
+  check('Protokoll: Erinnerungen stehen drin', r.json.protokoll.some((p) => p.ort === 'Salzburg' && p.text === 'Erinnerung 1 an 1 Person') && r.json.protokoll.some((p) => p.ort === 'Salzburg' && p.text === 'Erinnerung 2 an 1 Person'), JSON.stringify(r.json.protokoll.slice(0, 6)))
+  b = await cron(hour(28) + 120, 'tag2')
+  n = await neu()
+  check('Anif um 04:02 (es schneit seit 04:00): jetzt geweckt', n.push.some((p) => p.topic === 'wd-anif') && !!b.orte.Anif.alarm, JSON.stringify(b.orte.Anif))
 } catch (err) {
   check('Ablauf ohne Ausnahme', false, String(err?.stack || err).slice(0, 900))
 }

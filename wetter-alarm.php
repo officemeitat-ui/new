@@ -11,7 +11,13 @@
 //    wetter-alarm.php?w=…) und die Person in der App „SMS“ angehakt hat (stufe1[].sms);
 //  - dazu WhatsApp von selbst, wenn die Schnittstelle von Meta eingerichtet ist (privat/whatsapp.json, Vorlage mit
 //    Knopf „Bin wach“; webspace-lib.php) und die Person in der App „WhatsApp“ angehakt hat (stufe1[].whatsapp);
+//  - bis jemand bestätigt, kommt der Push alle wiederholenMinuten (Vorgabe 3) noch einmal, höchstens wiederholungen-mal
+//    (Vorgabe 5): ein Ton allein weckt kaum. Wie oft, hängt auch am Cronjob (alle 2 bis 5 Minuten aufrufen);
 //  - bestätigt in Stufe 1 niemand binnen 15 Minuten, geht der Alarm an Stufe 2 (z. B. Büro);
+//  - je Ort eigene Regeln (orte[].regeln überschreibt regeln) und welche Lage weckt (orte[].arten: schnee, glaette,
+//    warnung); je Person in Stufe 1, welche Alarme sie bekommt (stufe1[].bei: schnee = Räumen, glaette = Streuen,
+//    sonst alle). Passt niemand zur Lage, werden alle aus Stufe 1 geweckt. Bei wöchentlichem Wechsel bekommt die
+//    Person der Woche alles;
 //  - ein Ort meldet sich höchstens alle 8 Stunden neu, außer die Warnstufe steigt;
 //  - optional Ruhezeit (z. B. 22–3 Uhr): Alarm erst am Ende, Warnung orange/rot sofort.
 //
@@ -49,7 +55,30 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/wetter-lib.php';
 require __DIR__ . '/webspace-lib.php';
 
-const ALARM_STANDARD = ['vorlaufStunden' => 3, 'schneeCm' => 0.3, 'glaetteC' => 1, 'pauseStunden' => 8, 'eskalationMinuten' => 15, 'ruheVon' => '', 'ruheBis' => '', 'ruheAusnahmeStufe' => 2, 'ohneDatenStunden' => 2];
+const ALARM_STANDARD = ['vorlaufStunden' => 3, 'schneeCm' => 0.3, 'glaetteC' => 1, 'pauseStunden' => 8, 'eskalationMinuten' => 15, 'ruheVon' => '', 'ruheBis' => '', 'ruheAusnahmeStufe' => 2, 'ohneDatenStunden' => 2, 'wiederholenMinuten' => 3, 'wiederholungen' => 5];
+const ALARM_ARTEN = ['schnee', 'glaette', 'warnung'];
+
+/** Regeln eines Orts: die allgemeinen, überschrieben von den eigenen des Orts (nur bekannte Schlüssel, Zahlen bzw. Uhrzeiten). */
+function regeln_ort(array $e, array $ort): array
+{
+    $r = $e['regeln'];
+    foreach ((array) ($ort['regeln'] ?? []) as $k => $v) {
+        if (!array_key_exists($k, ALARM_STANDARD)) {
+            continue;
+        }
+        if (in_array($k, ['ruheVon', 'ruheBis'], true) ? is_string($v) && ($v === '' || preg_match('/^\d{2}:\d{2}$/', $v)) : is_numeric($v) && $v >= 0) {
+            $r[$k] = is_string(ALARM_STANDARD[$k]) ? (string) $v : (float) $v;
+        }
+    }
+    return $r;
+}
+
+/** Welche Lage an diesem Ort weckt (orte[].arten); ohne Angabe alle. */
+function arten_ort(array $ort): array
+{
+    $a = array_values(array_intersect(ALARM_ARTEN, (array) ($ort['arten'] ?? ALARM_ARTEN)));
+    return $a ?: ALARM_ARTEN;
+}
 const STUFE_TEXT = [1 => 'gelb', 2 => 'orange', 3 => 'rot'];
 const WHATSAPP_TAG = 150; // höchstens so viele WhatsApp-Nachrichten am Tag (Schutz vor Kosten, falls etwas schiefläuft)
 const SMS_TAG = 100;      // höchstens so viele SMS am Tag (bei rund 8 Cent je SMS höchstens rund 8 Euro, eine lange SMS zählt doppelt)
@@ -141,7 +170,7 @@ function protokoll(array &$stand, string $ort, string $text): void
  * ['stufe' => 1–3, 'text' => …, 'arten' => [...]]: Schneefall in den nächsten Stunden,
  * Glätte (Niederschlag bei Frost) oder amtliche Schnee-/Glatteiswarnung.
  */
-function lage(array $stunden, array $warnungen, array $r, int $jetzt): ?array
+function lage(array $stunden, array $warnungen, array $r, int $jetzt, array $erlaubt = ALARM_ARTEN): ?array
 {
     $bis = $jetzt + (int) round($r['vorlaufStunden'] * 3600);
     // Werte von GeoSphere gelten für die Stunde, die zum Zeitstempel endet: Beginn = Zeitstempel − 1 h
@@ -150,7 +179,7 @@ function lage(array $stunden, array $warnungen, array $r, int $jetzt): ?array
     $arten = [];
     $stufe = 0;
     $schnee = null;
-    foreach ($nah as $h) {
+    foreach (in_array('schnee', $erlaubt, true) ? $nah : [] as $h) {
         if (($h['snow'] ?? 0) >= $r['schneeCm']) {
             $schnee = $h;
             break;
@@ -170,7 +199,7 @@ function lage(array $stunden, array $warnungen, array $r, int $jetzt): ?array
         $arten[] = 'schnee';
         $stufe = 1;
     }
-    foreach ($nah as $h) {
+    foreach (in_array('glaette', $erlaubt, true) ? $nah : [] as $h) {
         if ($h['t'] !== null && $h['t'] <= $r['glaetteC'] && ($h['precip'] ?? 0) >= 0.1 && !(($h['snow'] ?? 0) > 0)) {
             $texte[] = sprintf('Glätte möglich ab %s Uhr (%s °C mit Niederschlag)', uhrzeit(max($h['at'] - 3600, $jetzt)), str_replace('.', ',', (string) round($h['t'], 1)));
             $arten[] = 'glaette';
@@ -178,7 +207,7 @@ function lage(array $stunden, array $warnungen, array $r, int $jetzt): ?array
             break;
         }
     }
-    foreach ($warnungen as $w) {
+    foreach (in_array('warnung', $erlaubt, true) ? $warnungen : [] as $w) {
         if (($w['type'] === 'schnee' || $w['type'] === 'glatteis') && $w['start'] < $bis && $w['end'] > $jetzt) {
             $texte[] = sprintf('%swarnung %s (GeoSphere) %s–%s Uhr', $w['type'] === 'schnee' ? 'Schnee' : 'Glatteis', STUFE_TEXT[$w['level']], uhrzeit($w['start'], 'd.m. H:i'), uhrzeit($w['end'], 'H:i'));
             $arten[] = $w['type'];
@@ -198,13 +227,20 @@ function gemeldet(array $wartend): string
  * Stufe 1 eines Orts: alle, oder bei wöchentlichem Wechsel („wechsel“: „woche“) nur, wer
  * diese Woche Bereitschaft hat (Wechsel montags 0 Uhr, gleiche Rechnung wie in der App).
  */
-function stufe1(array $ort, int $ts): array
+function stufe1(array $ort, int $ts, array $arten = []): array
 {
     $liste = array_values((array) ($ort['stufe1'] ?? []));
     // abwesend (Urlaub, Krankenstand laut App) am Tag des Einsatzes: nicht wecken
     $da = array_values(array_filter($liste, fn ($p) => anwesend($p, $ts)));
     if (($ort['wechsel'] ?? '') !== 'woche' || count($liste) < 2) {
-        return $da;
+        // je Person, welche Alarme sie bekommt: schnee (Räumen) bzw. glaette (Streuen); passt niemand, alle
+        $passt = fn ($p) => match ((string) ($p['bei'] ?? '')) {
+            'schnee' => in_array('schnee', $arten, true),
+            'glaette' => in_array('glaette', $arten, true) || in_array('glatteis', $arten, true),
+            default => true,
+        };
+        $gefiltert = $arten ? array_values(array_filter($da, $passt)) : $da;
+        return $gefiltert ?: $da;
     }
     $tag = intdiv((int) gmmktime(0, 0, 0, (int) uhrzeit($ts, 'n'), (int) uhrzeit($ts, 'j'), (int) uhrzeit($ts, 'Y')), 86400);
     // Bereitschaft dieser Woche; ist sie abwesend, der/die Nächste in der Reihe
@@ -609,6 +645,7 @@ function pruefen(array $e): array
             $s = $stand['orte'][$name] ?? [];
             $d = $daten[$name];
             $fehler = [];
+            $r = regeln_ort($e, $ort);
             if (isset($d['fehler'])) {
                 $s['fehler'] = $d['fehler'];
                 // zu lange ohne Wetterdaten: Stufe 2 Bescheid geben (einmal)
@@ -626,7 +663,7 @@ function pruefen(array $e): array
             }
             unset($s['fehler'], $s['ohneDatenGemeldet']);
             $s['geprueft'] = $jetzt;
-            $lage = lage($d['stunden'], $d['warnungen'], $r, $jetzt);
+            $lage = lage($d['stunden'], $d['warnungen'], $r, $jetzt, arten_ort($ort));
             $s['lage'] = $lage['text'] ?? 'ruhig';
             $alarm = $s['alarm'] ?? null;
             $objekte = implode(', ', array_column(objekte($ort), 'name'));
@@ -635,11 +672,11 @@ function pruefen(array $e): array
                 $neu = !$alarm || !empty($alarm['test']) || $jetzt - (int) $alarm['gesendet'] >= $r['pauseStunden'] * 3600 || $lage['stufe'] > (int) $alarm['stufe'];
                 if ($neu && in_ruhezeit($r, $jetzt) && $lage['stufe'] < $r['ruheAusnahmeStufe']) {
                     // Ruhezeit: merken, am Ende wecken
-                    $s['wartend'] = $s['wartend'] ?? ['seit' => $jetzt, 'text' => $lage['text']];
+                    $s['wartend'] = $s['wartend'] ?? ['seit' => $jetzt, 'text' => $lage['text'], 'arten' => $lage['arten']];
                 } elseif ($neu || !empty($s['wartend'])) {
                     $text = !empty($s['wartend']) ? gemeldet($s['wartend']) . ($s['wartend']['text'] !== $lage['text'] ? '. Jetzt: ' . $lage['text'] : '') : $lage['text'];
                     $alarm = ['id' => bin2hex(random_bytes(6)), 'gesendet' => $jetzt, 'stufe' => $lage['stufe'], 'text' => $text, 'empfaenger' => [], 'wach' => [], 'eskaliert' => null, 'test' => false];
-                    $fehler = alarm_senden($e, $alarm, stufe1($ort, $jetzt), $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.');
+                    $fehler = alarm_senden($e, $alarm, stufe1($ort, $jetzt, array_merge($lage['arten'], (array) ($s['wartend']['arten'] ?? []))), $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.');
                     unset($s['wartend']);
                     protokoll($stand, $name, "Alarm: $text");
                 }
@@ -647,9 +684,28 @@ function pruefen(array $e): array
                 // in der Ruhezeit gemeldet, inzwischen vorbei: trotzdem wecken (Schnee liegt)
                 $text = gemeldet($s['wartend']);
                 $alarm = ['id' => bin2hex(random_bytes(6)), 'gesendet' => $jetzt, 'stufe' => 1, 'text' => $text, 'empfaenger' => [], 'wach' => [], 'eskaliert' => null, 'test' => false];
-                $fehler = alarm_senden($e, $alarm, stufe1($ort, $jetzt), $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.');
+                $fehler = alarm_senden($e, $alarm, stufe1($ort, $jetzt, (array) ($s['wartend']['arten'] ?? [])), $titel, "$text." . ($objekte ? " Objekte: $objekte." : '') . ' Bitte mit „Bin wach“ bestätigen.');
                 unset($s['wartend']);
                 protokoll($stand, $name, "Alarm nach der Ruhezeit: $text");
+            }
+            // niemand bestätigt: den Push wiederholen (nur Push, ohne E-Mail, SMS und WhatsApp; mit denselben Codes)
+            // nur für einen frischen Alarm (sonst käme nach dem Einschalten des Wiederholens eine Erinnerung zu einem Alarm von gestern)
+            $frisch = $alarm && $jetzt - (int) $alarm['gesendet'] <= ((float) $r['wiederholungen'] * (float) $r['wiederholenMinuten'] + 10) * 60;
+            if ($alarm && $frisch && empty($alarm['test']) && !$alarm['wach'] && !empty($alarm['empfaenger']) && (float) $r['wiederholenMinuten'] > 0
+                && (int) ($alarm['wiederholt'] ?? 0) < (int) $r['wiederholungen'] && $jetzt - (int) ($alarm['zuletzt'] ?? $alarm['gesendet']) >= (float) $r['wiederholenMinuten'] * 60 - 30) {
+                $n = 0;
+                foreach ($alarm['empfaenger'] as $tk => $em) {
+                    if (empty($em['thema'])) {
+                        continue;
+                    }
+                    $n++;
+                    $fehler = array_merge($fehler, benachrichtigen($e, ['name' => $em['name'], 'ntfy' => $em['thema']] + (isset($em['sprache']) ? ['sprache' => $em['sprache']] : []), "Erinnerung: $titel", $alarm['text'] . '. Noch hat niemand bestätigt. Bitte mit „Bin wach“ bestätigen.', (string) $tk, false));
+                }
+                $alarm['wiederholt'] = (int) ($alarm['wiederholt'] ?? 0) + 1;
+                $alarm['zuletzt'] = $jetzt;
+                if ($n) {
+                    protokoll($stand, $name, 'Erinnerung ' . $alarm['wiederholt'] . ' an ' . $n . ($n === 1 ? ' Person' : ' Personen'));
+                }
             }
             // niemand bestätigt: Stufe 2
             // niemand geweckt (Ort ohne Stufe 1): keine nächtliche Eskalation ans Büro
@@ -773,7 +829,7 @@ if ($aktion === 'handy') {
         . '<h2>1. ' . th('h_schritt1') . '</h2>' . $laden
         . '<h2>2. ' . th('h_schritt2') . '</h2><a class="knopf" href="' . $h($tief) . '">' . th('h_knopf') . '</a>'
         . '<p class="leise">' . th('h_vonhand', ['thema' => '<code>' . $h($thema) . '</code>', 'server' => '<code>' . $h($server) . '</code>']) . '</p>'
-        . '<h2>3. ' . th('h_schritt3') . '</h2><ul><li>' . th('h_einst_sofort') . '</li><li>' . th('h_einst_laut') . '</li><li>' . th('h_einst_akku') . '</li></ul>'
+        . '<h2>3. ' . th('h_schritt3') . '</h2><ul><li>' . th('h_einst_sofort') . '</li><li>' . th('h_einst_laut') . '</li><li><b>' . th('h_einst_dauer') . '</b></li><li>' . th('h_einst_akku') . '</li></ul>'
         . '<h2>4. ' . th('h_schritt4') . '</h2><form method="post" action="' . $h($selbst) . '"><button type="submit">' . th('h_probe_knopf') . '</button></form>', 200, '', t('h_titel'));
     exit;
 }

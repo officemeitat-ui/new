@@ -218,7 +218,7 @@ test('Schnee-Alarm: Datei für den Server (Stufe 1 aus den Teams, Stufe 2, Büro
   assert.equal(f.schluessel, 'k'.repeat(64))
   assert.equal(f.pruefschluessel, 'p'.repeat(32))
   assert.equal(f.ntfy, 'https://ntfy.sh')
-  assert.deepEqual(f.regeln, { vorlaufStunden: 3, schneeCm: 0.3, pauseStunden: 8, eskalationMinuten: 15, ruheVon: '22:00', ruheBis: '03:00', ruheAusnahmeStufe: 2 })
+  assert.deepEqual(f.regeln, { vorlaufStunden: 3, schneeCm: 0.3, pauseStunden: 8, eskalationMinuten: 15, ruheVon: '22:00', ruheBis: '03:00', ruheAusnahmeStufe: 2, wiederholenMinuten: 3, wiederholungen: 5 })
   assert.deepEqual(f.orte.map((o) => o.name), ['Salzburg', 'Hallein'], 'Obertrum ist aus')
   const [sbg, hal] = f.orte
   assert.deepEqual(sbg.objekte, [{ id: 'o1', name: 'Wohnanlage Lehen', adresse: '' }])
