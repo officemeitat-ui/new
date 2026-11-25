@@ -158,6 +158,10 @@ try {
   // ------------------------------------------------ 2. WhatsApp-Zugang
   await openDialog()
   check('Dialog nach dem Einrichten: Stand von WhatsApp am Webspace „noch nicht eingerichtet“', !!(await O.waitFor(async () => /noch nicht eingerichtet/.test(await waState()), 10000)), await waState())
+  const blickLink = await O.page.evaluate(() => document.querySelector('.modal a[href*="aktion=blick"]')?.getAttribute('href') || '')
+  check('Abschnitt „Haupt-Gerät: alles auf einen Blick“: Link mit Code, „Bestätigung ans Büro-Handy“ ist an', new RegExp(`^http://localhost:${PORT}/wetter-alarm\\.php\\?aktion=blick&k=[a-f0-9]{24}$`).test(blickLink) && (await O.page.isChecked('#al-confirm')) && file.bestaetigungAnBuero === true && blickLink.endsWith(file.blick), blickLink)
+  const blickSeite = await (await fetch(blickLink.replace(`http://localhost:${PORT}`, `http://127.0.0.1:${PHP}`))).text()
+  check('Die Übersicht am Webspace zeigt den Ort', /Winterdienst auf einen Blick/.test(blickSeite) && /Salzburg Stadt/.test(blickSeite))
   await O.page.click('.modal details.al-wa-help summary')
   t = await modal()
   check('Anleitung für Meta: fünf Schritte, Name und Text der Vorlage, Adresse des Knopfs mit Variable', /business\.facebook\.com/.test(t) && /Telefonnummer-ID/.test(t) && /dauerhaftes Zugriffstoken/.test(t) && /winterdienst_alarm/.test(t) && t.includes('Winterdienst-Meldung: {{1}} – {{2}} (automatische Nachricht)') && t.includes(`http://localhost:${PORT}/wetter-alarm.php?aktion=wach&t={{1}}`) && /Dienstprogramm/.test(t))
@@ -220,6 +224,7 @@ try {
   check('WhatsApp: Überschrift und Text des Testalarms, Knopf mit Bestätigungs-Code', !!dragan && /^Testalarm Winterdienst /.test(param(dragan, 'body')[0]) && /Probe: So kommt der Schnee-Alarm/.test(param(dragan, 'body')[1]) && /^[a-f0-9]{24}$/.test(param(dragan, 'button')[0]), JSON.stringify(dragan || {}).slice(0, 300))
   await O.waitFor(async () => /Testalarm/.test(await O.text('main .wx-alarm')), 15000)
   t = await O.text('main .wx-alarm')
+  check('Karte: Knopf „Auf einen Blick“ öffnet die Übersicht', (await O.page.locator('main .wx-alarm a[href*="aktion=blick"]').count()) === 1)
   check('Karte in der App: Testalarm noch unbestätigt, Hinweis „SMS und WhatsApp von selbst sind eingerichtet“', /Testalarm .*noch niemand bestätigt/.test(t) && /SMS und WhatsApp von selbst sind eingerichtet/.test(t), t.slice(0, 300))
   const wach = await fetch(`http://127.0.0.1:${PHP}/wetter-alarm.php?aktion=wach&t=${param(dragan, 'button')[0]}`, { method: 'POST' })
   await O.page.click('main [data-action="wx-alarm-status"]')

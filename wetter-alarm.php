@@ -1,7 +1,7 @@
 <?php
 // Schnee-Alarm für den Winterdienst (läuft am Webspace, unabhängig davon, ob jemand die App offen hat).
 //
-// Ein Cronjob ruft diese Datei alle 10 Minuten auf. Sie prüft je Ort (z. B. Salzburg,
+// Ein Cronjob ruft diese Datei alle 2 bis 5 Minuten auf (höchstens alle 10). Sie prüft je Ort (z. B. Salzburg,
 // Hallein, Obertrum) Vorhersage und amtliche Warnungen von GeoSphere Austria und weckt
 // das Winterdienst-Team, sobald es zu schneien beginnt, Glätte droht oder eine Schnee-
 // oder Glatteiswarnung gilt:
@@ -26,6 +26,9 @@
 //   wetter-alarm.php?aktion=pruefen&schluessel=… prüfen (externer Cron-Dienst, Prüfschlüssel)
 //   wetter-alarm.php?aktion=wach&t=…             „Bin wach“ (ntfy-Knopf, Link in der E-Mail)
 //   wetter-alarm.php?aktion=protokoll&t=…        Winterdienst-Protokoll am Handy (ohne Anmeldung, mit Fotos)
+//   wetter-alarm.php?aktion=blick&k=Code         „Winterdienst auf einen Blick“ fürs Haupt-Gerät (Chef, Büro): je Ort Lage,
+//                                                Alarm, wer bestätigt hat, Erinnerungen, Handys bereit, Protokolle von heute;
+//                                                ohne Anmeldung, Code aus der Alarm-Datei (blick), lädt jede Minute neu
 //   wetter-alarm.php?aktion=handy&t=Thema        „Handy einrichten“: App ntfy, Thema mit einem Tipp abonnieren
 //                                                (ntfy://), Einstellungen, Probe an das eigene Handy (in der Sprache der Person)
 //   Die Seiten „Bin wach“ und „Protokoll“ und die Knöpfe der Push-Nachricht kommen in der Sprache der Person
@@ -400,6 +403,12 @@ function adresse(array $e): string
     return rtrim((string) ($e['adresse'] ?? ''), '/') . '/';
 }
 
+/** Link zur Übersicht „Winterdienst auf einen Blick“ oder '' (ohne Code in der Alarm-Datei). */
+function blick_link(array $e): string
+{
+    return preg_match('/^[a-f0-9]{24}$/', (string) ($e['blick'] ?? '')) ? adresse($e) . 'wetter-alarm.php?aktion=blick&k=' . $e['blick'] : '';
+}
+
 /** Formular von einer fremden Seite? (Browser schicken Sec-Fetch-Site mit; wie in mein-plan.php) */
 function fremde_herkunft(): bool
 {
@@ -769,13 +778,14 @@ if ($aktion === 'wach') {
     $wer = mit_stand(function (array &$stand) use ($token) {
         foreach ($stand['orte'] as $name => &$s) {
             if (isset($s['alarm']['empfaenger'][$token])) {
+                $erstes = !isset($s['alarm']['wach'][$token]);
                 $s['alarm']['wach'][$token] = $s['alarm']['wach'][$token] ?? jetzt();
                 $person = $s['alarm']['empfaenger'][$token]['name'];
                 if (!empty($s['alarm']['empfaenger'][$token]['thema'])) {
                     $stand['bereit'][(string) $s['alarm']['empfaenger'][$token]['thema']] = jetzt(); // dieses Handy weckt
                 }
                 protokoll($stand, $name, "$person ist wach (bestätigt)");
-                return [$person, $name];
+                return [$person, $name, $erstes, !empty($s['alarm']['test'])];
             }
         }
         return null;
@@ -784,8 +794,92 @@ if ($aktion === 'wach') {
         html_seite('<p>' . th('w_nicht_offen') . '</p>', 404, '', t('w_titel'));
         exit;
     }
+    // Bestätigung ans Büro-Handy (Stufe 2 „Büro“ mit Push), wenn so eingestellt; nur beim ersten Tippen
+    if ($wer[2] && !empty($e['bestaetigungAnBuero'])) {
+        foreach ((array) ($e['orte'] ?? []) as $ort) {
+            if (($ort['name'] ?? '') !== $wer[1]) {
+                continue;
+            }
+            foreach ((array) ($ort['stufe2'] ?? []) as $b) {
+                if (($b['name'] ?? '') === 'Büro' && !empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => ($wer[3] ? 'Testalarm bestätigt: ' : 'Bestätigt: ') . 'Winterdienst ' . $wer[1], 'message' => $wer[0] . ' ist wach (' . uhrzeit(jetzt()) . ' Uhr).', 'priority' => 3, 'tags' => ['white_check_mark'], 'click' => blick_link($e) ?: adresse($e) . '#wetter']);
+                }
+            }
+        }
+    }
     html_seite('<h1>' . th('w_danke', ['name' => htmlspecialchars($wer[0])]) . '</h1><p>' . th('w_bestaetigt', ['ort' => htmlspecialchars($wer[1])]) . '</p>'
         . '<a class="knopf" href="wetter-alarm.php?aktion=protokoll&amp;t=' . $token . '">' . th('w_protokoll_eintragen') . '</a>', 200, '', t('w_titel'));
+    exit;
+}
+
+// „Winterdienst auf einen Blick“ fürs Haupt-Gerät: alles Wichtige ohne Anmeldung, mit dem Code aus der Alarm-Datei
+if ($aktion === 'blick') {
+    $k = (string) ($_GET['k'] ?? '');
+    sprache('de');
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Referrer-Policy: no-referrer');
+    if (!$e || !preg_match('/^[a-f0-9]{24}$/', (string) ($e['blick'] ?? '')) || !hash_equals((string) $e['blick'], $k)) {
+        html_seite('<h1>Winterdienst auf einen Blick</h1><p>Dieser Link gilt nicht (mehr). Den aktuellen Link gibt es in der App unter „Schnee-Alarm“ → „Einstellungen“.</p>', 404, '', 'Winterdienst');
+        exit;
+    }
+    header('Refresh: 60'); // lädt jede Minute neu
+    $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
+    $stand = mit_stand(fn (array &$s) => $s);
+    $jetzt = jetzt();
+    $vor = fn (int $ts) => $jetzt - $ts < 60 ? 'gerade eben' : ($jetzt - $ts < 7200 ? 'vor ' . intdiv($jetzt - $ts, 60) . ' min' : uhrzeit($ts, 'd.m. H:i'));
+    $letzte = (int) ($stand['letztePruefung'] ?? 0);
+    $kopf = '<h1>Winterdienst auf einen Blick</h1><p class="leise">Stand ' . uhrzeit($jetzt, 'd.m.Y H:i') . ' Uhr · lädt jede Minute neu</p>'
+        . (!$letzte ? '<p class="fehler">Noch keine Prüfung am Webspace: läuft der Cronjob?</p>' : ($jetzt - $letzte > 1800 ? '<p class="fehler">Letzte Wetterprüfung ' . $h($vor($letzte)) . ': läuft der Cronjob?</p>' : '<p class="leise">Wetter geprüft ' . $h($vor($letzte)) . '</p>'));
+    $bereit = (array) ($stand['bereit'] ?? []);
+    $heute = uhrzeit($jetzt, 'Y-m-d');
+    $prot = array_values(array_filter(protokolle_lesen(substr($heute, 0, 7)), fn ($p) => ($p['datum'] ?? '') === $heute && empty($p['test'])));
+    $teile = '';
+    foreach ((array) ($e['orte'] ?? []) as $ort) {
+        $name = (string) $ort['name'];
+        $s = (array) ($stand['orte'][$name] ?? []);
+        $a = $s['alarm'] ?? null;
+        $offen = $a && $jetzt - (int) $a['gesendet'] <= 36 * 3600;
+        $html = '<h2>' . $h($name) . '</h2>';
+        $lage = (string) ($s['lage'] ?? '');
+        $html .= !empty($s['fehler']) ? '<p class="fehler">Keine Wetterdaten: ' . $h((string) $s['fehler']) . '</p>' : '<p>' . ($lage === '' ? '<span class="leise">noch nicht geprüft</span>' : ($lage === 'ruhig' ? 'ruhig' : '<b>' . $h($lage) . '</b>')) . '</p>';
+        if (!empty($s['wartend'])) {
+            $html .= '<p class="leise">Ruhezeit: wird am Ende geweckt (gemeldet ' . uhrzeit((int) $s['wartend']['seit']) . ' Uhr).</p>';
+        }
+        if ($offen) {
+            $wach = (array) ($a['wach'] ?? []);
+            $zeilen = '';
+            foreach ((array) ($a['empfaenger'] ?? []) as $tk => $em) {
+                $ts = $wach[$tk] ?? null;
+                $zeilen .= '<li>' . ($ts ? '<span class="ok-zeichen">✓</span> ' : '<span class="warte">…</span> ') . $h((string) ($em['name'] ?? '?'))
+                    . ((int) ($em['stufe'] ?? 1) === 2 ? ' <span class="leise">(Stufe 2)</span>' : '') . ($ts ? ' – wach ' . uhrzeit((int) $ts) . ' Uhr' : ' – <span class="leise">noch nicht bestätigt</span>') . '</li>';
+            }
+            $html .= '<div class="' . ($wach ? 'ok' : 'fehler') . '">' . (!empty($a['test']) ? 'Testalarm' : 'Alarm') . ' ' . uhrzeit((int) $a['gesendet'], 'd.m. H:i') . ' Uhr'
+                . ($wach ? ' – bestätigt' : ' – noch niemand bestätigt') . (!empty($a['eskaliert']) ? ', Stufe 2 alarmiert ' . uhrzeit((int) $a['eskaliert']) . ' Uhr' : '')
+                . (!empty($a['wiederholt']) ? ', ' . (int) $a['wiederholt'] . '× erinnert' : '') . '</div>' . ($zeilen ? '<ul class="liste">' . $zeilen . '</ul>' : '');
+        }
+        // Handys aus Stufe 1: bereit (Probe oder Alarm bestätigt)?
+        $handys = '';
+        foreach ((array) ($ort['stufe1'] ?? []) as $p) {
+            if (!empty($p['ntfy'])) {
+                $b = (int) ($bereit[$p['ntfy']] ?? 0);
+                $handys .= '<li>' . ($b ? '<span class="ok-zeichen">✓</span> ' : '<span class="warte">?</span> ') . $h((string) $p['name']) . ($b ? ' <span class="leise">' . uhrzeit($b, 'd.m.') . '</span>' : ' <span class="leise">Handy noch nicht geprüft</span>') . '</li>';
+            }
+        }
+        $html .= $handys ? '<details><summary>Handys in Stufe 1</summary><ul class="liste">' . $handys . '</ul></details>' : '';
+        $heuteHier = array_filter($prot, fn ($p) => ($p['ort'] ?? '') === $name);
+        if ($heuteHier) {
+            $html .= '<p class="leise">Heute eingetragen:</p><ul class="liste">' . implode('', array_map(fn ($p) => '<li>' . $h(uhrzeit((int) $p['erledigt'])) . ' ' . $h((string) $p['objekt']) . ' – ' . $h((string) $p['person']) . ' <span class="leise">(' . $h(implode(', ', array_filter([!empty($p['geraeumt']) ? 'geräumt' : '', !empty($p['gestreut']) ? 'gestreut' : '', !empty($p['kontrolle']) ? 'kontrolliert' : '']))) . ')</span></li>', $heuteHier)) . '</ul>';
+        }
+        $teile .= '<section class="ort">' . $html . '</section>';
+    }
+    $ohneOrt = array_filter($prot, fn ($p) => ($p['ort'] ?? '') === '');
+    if ($ohneOrt) {
+        $teile .= '<section class="ort"><h2>Andere Adressen</h2><ul class="liste">' . implode('', array_map(fn ($p) => '<li>' . $h(uhrzeit((int) $p['erledigt'])) . ' ' . $h((string) $p['objekt']) . ' – ' . $h((string) $p['person']) . '</li>', $ohneOrt)) . '</ul></section>';
+    }
+    $log = array_slice((array) ($stand['protokoll'] ?? []), 0, 15);
+    $teile .= $log ? '<details><summary>Protokoll des Alarms</summary><ul class="liste">' . implode('', array_map(fn ($p) => '<li><span class="leise">' . uhrzeit((int) $p['zeit'], 'd.m. H:i') . '</span> ' . $h((string) $p['ort']) . ': ' . $h((string) $p['text']) . '</li>', $log)) . '</ul></details>' : '';
+    html_seite('<style>main{max-width:40rem}.ort{border-top:1px solid #dde5ea;padding:.4rem 0 .6rem}.ort h2{margin:.6rem 0 .2rem}.liste{list-style:none;padding:0;margin:.3rem 0}.liste li{margin:.25rem 0}.ok-zeichen{color:#2e6b12;font-weight:700}.warte{color:#a1460b;font-weight:700}summary{cursor:pointer;color:#0a5a96;margin:.4rem 0}</style>'
+        . $kopf . $teile, 200, '', 'Winterdienst');
     exit;
 }
 

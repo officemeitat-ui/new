@@ -417,6 +417,8 @@ export const ALARM_DEFAULTS = {
   escalateMin: 15, // ohne „Bin wach“ nach so vielen Minuten an Stufe 2
   repeatMin: 3, // bis jemand bestätigt: Push alle so viele Minuten wiederholen (0 = aus; der Cronjob muss so oft laufen)
   repeats: 5, // höchstens so oft wiederholen
+  blick: '', // Code der Übersicht „Winterdienst auf einen Blick“ (wetter-alarm.php?aktion=blick&k=…) fürs Haupt-Gerät
+  confirmToOffice: true, // Büro-Handy (Stufe 2) bekommt einen Push, sobald jemand „Bin wach“ tippt
   pauseHours: 8, // ein Ort meldet sich höchstens so oft neu (außer die Warnstufe steigt)
   quietFrom: '', // Ruhezeit (optional), Warnung orange/rot weckt trotzdem
   quietTo: '',
@@ -481,6 +483,9 @@ export const WHATSAPP_TEMPLATE = {
   button: 'Bin wach',
   samples: ['Winterdienst Salzburg', 'Schneefall ab 04:00 Uhr, ca. 6 cm in 12 h. Objekte: Wohnanlage Lehen. Bitte mit „Bin wach“ bestätigen.', 'a1b2c3d4e5f6a1b2c3d4e5f6'],
 }
+
+/** Link zur Übersicht „Winterdienst auf einen Blick“ (ohne Anmeldung, mit dem Code) oder ''. */
+export const overviewLink = (address, code) => (/^[a-f0-9]{24}$/.test(code || '') ? `${String(address).replace(/\/?$/, '/')}wetter-alarm.php?aktion=blick&k=${code}` : '')
 
 /** Adresse des Knopfs der Vorlage (endet mit der Variable {{1}}, dort setzt der Server den Bestätigungs-Code ein). */
 export const whatsappButtonUrl = (address) => `${String(address).replace(/\/?$/, '/')}wetter-alarm.php?aktion=wach&t={{1}}`
@@ -605,6 +610,9 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     absender: a.sender || '',
     regeln: { vorlaufStunden: Number(a.leadHours), schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2, wiederholenMinuten: Math.max(0, Number(a.repeatMin ?? ALARM_DEFAULTS.repeatMin) || 0), wiederholungen: Math.max(0, Math.round(Number(a.repeats ?? ALARM_DEFAULTS.repeats) || 0)) },
     orte,
+    // Übersicht fürs Haupt-Gerät und Push ans Büro bei jeder Bestätigung
+    ...(/^[a-f0-9]{24}$/.test(a.blick || '') ? { blick: a.blick } : {}),
+    ...(a.confirmToOffice !== false ? { bestaetigungAnBuero: true } : {}),
     // nur mit Fahrern: ohne sie bleibt die Datei, wie sie war
     ...(fahrer.length ? { fahrer, winterObjekte } : {}),
   }

@@ -2,13 +2,13 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 435 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 436 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (35)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (36)
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
@@ -1211,7 +1211,7 @@ Bleibt der Schnee aus, nimmst du den Winterdienst je Objekt mit „absagen“ wi
 
 *In der App: Wetter & Winterdienst*
 
-Der Schnee-Alarm prüft am Webspace alle 10 Minuten je Ort Vorhersage und Warnungen, auch nachts ohne offene App. Bei Schneefall, Glätte oder Warnung weckt er Stufe 1 per Push (ntfy, Knopf „Bin wach“); bestätigt 15 Minuten niemand, geht der Alarm an Stufe 2.
+Der Webspace prüft alle paar Minuten je Ort Vorhersage und Warnungen, auch nachts. Bei Schnee, Glätte oder Warnung weckt er Stufe 1 per Push mit Knopf „Bin wach“ und wiederholt ihn, bis jemand bestätigt; nach 15 Minuten geht der Alarm an Stufe 2. Je Ort lässt sich einstellen, was weckt, und je Person, ob sie nur Schnee (Räumen) oder nur Glätte (Streuen) bekommt.
 
 1. „Wetter & Winterdienst“ öffnen und bei „Schnee-Alarm“ „Alarm einrichten“ (bzw. „Einstellungen“) klicken.
 2. „Schnee-Alarm ein“ anhaken, Orte und Personen für Stufe 1 und 2 wählen.
@@ -1220,7 +1220,24 @@ Der Schnee-Alarm prüft am Webspace alle 10 Minuten je Ort Vorhersage und Warnun
 5. Danach „Speichern und übertragen“; „Testalarm senden“ prüft alle Handys.
 
 > Tipp: Wer in Stufe 1 steht, ist in Rufbereitschaft (§ 20a AZG): wöchentlich wechseln oder schriftlich regeln.
-> Tipp: Liegt die letzte Prüfung am Webspace über 30 Minuten zurück, den Cronjob prüfen.
+> Tipp: Liegt die letzte Prüfung am Webspace über 30 Minuten zurück, den Cronjob prüfen. Für das Wiederholen des Weckrufs den Cronjob alle 2 bis 5 Minuten laufen lassen.
+> Tipp: Bestätigen geht ohne Anmeldung: Knopf „Bin wach“ im Push oder Link in der SMS.
+> Tipp: Unter „Eigene Regeln für diesen Ort“ z. B. einen Ort mit Hanglage früher wecken.
+
+*Wer die Einsatzplanung bearbeiten darf*
+
+### Winterdienst auf einen Blick (Haupt-Gerät)
+
+*In der App: Wetter & Winterdienst*
+
+Auf einem Haupt-Gerät (Handy oder Tablet des Chefs, Büro) zeigt die Übersicht je Ort die Lage, den Alarm, wer wann „Bin wach“ getippt hat, Erinnerungen, welche Handys geprüft sind und was heute geräumt und gestreut wurde. Ohne Anmeldung, sie lädt jede Minute neu. Dazu bekommt das Büro-Handy bei jeder Bestätigung eine leise Nachricht.
+
+1. „Wetter & Winterdienst“ öffnen, bei „Schnee-Alarm“ „Einstellungen“.
+2. Unter „Haupt-Gerät: alles auf einen Blick“ „Link kopieren“ und am Haupt-Gerät öffnen, dann zum Startbildschirm hinzufügen.
+3. Für die Nachricht bei jeder Bestätigung „Büro-Handy in Stufe 2“ und „Büro-Handy bekommt eine Nachricht …“ anhaken, das Büro-Handy wie die anderen einrichten.
+
+> Tipp: Der Link wirkt wie ein Passwort; bei Verlust „Neuer Link“ und übertragen.
+> Tipp: In der App selbst zeigt die Karte „Schnee-Alarm“ dasselbe; dafür braucht es aber die Anmeldung.
 
 *Wer die Einsatzplanung bearbeiten darf*
 

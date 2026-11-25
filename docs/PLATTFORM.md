@@ -1386,7 +1386,7 @@ Länger als rund 2½ Tage rechnet kein freier Datensatz von GeoSphere voraus; ei
 
 ### Schnee-Alarm: das Team wecken
 
-Damit niemand nachts selbst aufs Wetter schauen muss: Der Webspace prüft **alle 10 Minuten** (Cronjob, auch wenn niemand die App offen hat) je Ort, etwa Salzburg, Hallein oder Obertrum, Vorhersage und Warnungen. Ausgelöst wird bei:
+Damit niemand nachts selbst aufs Wetter schauen muss: Der Webspace prüft **alle 2 bis 5 Minuten** (Cronjob, auch wenn niemand die App offen hat; höchstens alle 10) je Ort, etwa Salzburg, Hallein oder Obertrum, Vorhersage und Warnungen. Ausgelöst wird bei:
 
 - Schneefall in den nächsten 3 Stunden (ab 0,3 cm je Stunde);
 - Glätte, also Niederschlag bei Frost;
@@ -1397,6 +1397,10 @@ Was dann passiert:
 - **Stufe 1** wird per Push aufs Handy geweckt: App **ntfy**, höchste Priorität, Knopf **„Bin wach“**. Auf Wunsch kommt zusätzlich eine E-Mail.
 - **SMS von selbst** (seit 25.11.2026, optional): Wer in den Einstellungen bei „SMS“ angehakt ist, bekommt den Alarm zusätzlich als SMS mit einem kurzen Link zum Bestätigen. Braucht einen SMS-Dienst, siehe unten.
 - **WhatsApp von selbst** (seit 25.11.2026, optional): Wer in den Einstellungen bei „WhatsApp“ angehakt ist, bekommt den Alarm zusätzlich als WhatsApp-Nachricht mit dem Knopf „Bin wach“. Das geht nur über die offizielle Schnittstelle von Meta, siehe unten.
+- **Weckruf wiederholen:** Ein Ton allein weckt kaum. Bis jemand „Bin wach“ tippt, kommt der Push **alle 3 Minuten** noch einmal (höchstens 5-mal; beides unter „Wann wecken“ einstellbar, 0 = aus; so oft, wie der Cronjob läuft). Nur Push, ohne Kosten, mit denselben Codes. Dazu auf der Seite „Handy einrichten“ der Hinweis, in ntfy bei höchster Priorität weiterläuten zu lassen und einen lauten Ton zu wählen.
+- **Bestätigen ohne Anmeldung:** Der Knopf „Bin wach“ im Push bzw. der Link in SMS und E-Mail geht direkt an den Webspace; SharePoint oder ein Microsoft-Konto braucht es dafür nicht.
+- **Verschiedene Orte, Personen und Alarme:** je Ort „Alarm bei“ Schneefall, Glätte, Warnung von GeoSphere (z. B. ein Ort nur bei Schnee) und „Eigene Regeln für diesen Ort“ (Schneefall ab, so weit voraus, Stufe 2 nach, Ruhezeit; leer = allgemein). Je Person in Stufe 1 „Bekommt“: alle Alarme, nur Schnee (Räumen) oder nur Glätte (Streuen). Passt bei einer Lage niemand, werden alle aus Stufe 1 geweckt. Bei wöchentlichem Wechsel bekommt die Person der Woche alles.
+- **Auf einen Blick (Haupt-Gerät):** Link `wetter-alarm.php?aktion=blick&k=…` (ohne Anmeldung, Code wie ein Passwort, „Neuer Link“ im Dialog): je Ort Lage, Alarm mit allen Empfängern und wer wann bestätigt hat, Erinnerungen, Stufe 2, Handys in Stufe 1 (geprüft oder nicht), heute eingetragene Protokolle, Protokoll des Alarms; lädt jede Minute neu. Knopf „Auf einen Blick“ auch auf der Karte. Mit „Büro-Handy bekommt eine Nachricht …“ (Vorgabe an) kommt bei jeder ersten Bestätigung ein leiser Push ans Büro-Handy („Bestätigt: Winterdienst Salzburg – Dragan ist wach (04:12 Uhr)“), Klick öffnet die Übersicht.
 - Bestätigt **15 Minuten** lang niemand, geht der Alarm an **Stufe 2**, z. B. Büro-Handy, Disposition oder E-Mail (und WhatsApp an die Büro-Nummern).
 - Ein Ort meldet sich höchstens alle 8 Stunden neu, außer die Warnstufe steigt.
 - Optional gibt es eine **Ruhezeit** (z. B. 22–3 Uhr): Dann wird erst am Ende geweckt, Warnung orange oder rot weckt sofort.

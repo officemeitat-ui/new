@@ -14,7 +14,7 @@
 // nie in den Daten der App; hier liegt nur, wer per WhatsApp geweckt wird (alarm.whatsapp, alarm.officeWhatsapp).
 
 import { addDays, todayISO } from '../../core/dates.js'
-import { ALARM_DEFAULTS, ALARM_FOR, ALARM_TYPES, alarmDrivers, alarmFile, alarmInvite, alarmPlace, alarmProblems, alarmSetupLink, driverLink, findPlace, onCallIndex, phoneState, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
+import { ALARM_DEFAULTS, ALARM_FOR, ALARM_TYPES, alarmDrivers, alarmFile, alarmInvite, alarmPlace, alarmProblems, alarmSetupLink, driverLink, findPlace, onCallIndex, overviewLink, phoneState, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
 import { waNumber } from '../../core/whatsapp.js'
 import { langOf } from '../../core/sprachen.js'
 import { alarmSetupDocument } from '../../export/qr-pdf.js'
@@ -57,6 +57,7 @@ function complete(alarm, locations) {
   const a = { ...alarm, topics: { ...(alarm.topics || {}) }, places: { ...(alarm.places || {}) } }
   a.key ||= hex(32)
   a.cronKey ||= hex(16)
+  a.blick ||= hex(12)
   for (const loc of locations) {
     const set = alarmPlace(a, loc, app.data.objects, locations)
     for (const id of [...set.level1, ...set.level2]) a.topics[id] ||= newTopic()
@@ -151,7 +152,7 @@ export function alarmCard() {
   if (!a.enabled) {
     if (!editable) return ''
     return `<section class="wx-loc wx-alarm"><h3>${ICON.bell} Schnee-Alarm <span class="muted">(aus)</span></h3>
-      <p>Weckt das Winterdienst-Team per Push aufs Handy, sobald es an einem Ort zu schneien beginnt, Glätte droht oder GeoSphere vor Schnee oder Glatteis warnt. Die Prüfung läuft alle 10 Minuten am Webspace, auch nachts und ohne offene App. Bestätigt niemand mit „Bin wach“, geht der Alarm an Stufe 2 (z. B. Büro).</p>
+      <p>Weckt das Winterdienst-Team per Push aufs Handy, sobald es an einem Ort zu schneien beginnt, Glätte droht oder GeoSphere vor Schnee oder Glatteis warnt. Die Prüfung läuft alle paar Minuten am Webspace, auch nachts und ohne offene App. Bestätigt niemand mit „Bin wach“, geht der Alarm an Stufe 2 (z. B. Büro).</p>
       <button class="btn primary" data-action="wx-alarm-open">${ICON.bell} Alarm einrichten</button></section>`
   }
   loadAlarmStatus()
@@ -191,7 +192,7 @@ export function alarmCard() {
     <ul class="wx-alarm-list">${rows}</ul>${server}
     ${readiness(a, locations, st)}
     ${st?.sms || st?.whatsapp ? `<p class="note">${[st.sms ? 'SMS' : '', st.whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' und ')} von selbst ${st.sms && st.whatsapp ? 'sind' : 'ist'} eingerichtet: wer in den Einstellungen angehakt ist, bekommt den Alarm auch dort.</p>` : ''}
-    ${editable ? `<div class="toolbar"><button class="btn" data-action="wx-alarm-open">Einstellungen</button><button class="btn" data-action="wx-alarm-test">Testalarm senden</button><button class="btn" data-action="wx-alarm-status">${ICON.refresh} Stand</button></div>` : ''}
+    ${editable ? `<div class="toolbar">${a.transferred && overviewLink(address(), a.blick) ? `<a class="btn" href="${esc(overviewLink(address(), a.blick))}" target="_blank" rel="noopener">Auf einen Blick</a>` : ''}<button class="btn" data-action="wx-alarm-open">Einstellungen</button><button class="btn" data-action="wx-alarm-test">Testalarm senden</button><button class="btn" data-action="wx-alarm-status">${ICON.refresh} Stand</button></div>` : ''}
     ${st?.protokoll?.length ? `<details><summary>Protokoll</summary><ul class="wx-log">${st.protokoll.map((p) => `<li><span class="muted">${dateTime(p.zeit)}</span> ${esc(p.ort)}: ${esc(p.text)}</li>`).join('')}</ul></details>` : ''}
   </section>`
 }
@@ -259,6 +260,7 @@ function readForm() {
   })
   if (checked('al-office')) d.topics.office ||= newTopic()
   else delete d.topics.office
+  if (document.getElementById('al-confirm')) d.confirmToOffice = checked('al-confirm')
   // wer per WhatsApp geweckt wird (nur die Personen der Liste; ohne Liste bleibt es, wie es war)
   if (document.querySelector('input[name="al-wa"]')) d.whatsapp = Object.fromEntries([...document.querySelectorAll('input[name="al-wa"]:checked')].map((el) => [el.value, true]))
   if (document.querySelector('input[name="al-sms"]')) d.sms = Object.fromEntries([...document.querySelectorAll('input[name="al-sms"]:checked')].map((el) => [el.value, true]))
@@ -491,7 +493,16 @@ function alarmModal() {
       <p class="note">Gratis und am verlässlichsten weckt die App <strong>ntfy</strong> (Android ab 8, iPhone): Sie darf „Nicht stören“ übergehen. Jede Person bekommt einen eigenen Link zur Seite „Handy einrichten“ (per WhatsApp, E-Mail oder als Blatt mit QR-Code, in ihrer Sprache): App laden, mit einem Tipp abonnieren, Einstellungen für die Nacht, zum Schluss eine Probe mit „Bin wach“. Hier steht danach „bereit“. „Probe senden“ prüft ein Handy jederzeit wieder, z. B. vor dem ersten Schnee. Der Link wirkt wie ein Passwort: nur der Person geben.</p>
       ${sent && all.length ? `<p><button class="btn" data-action="wx-alarm-sheets">${ICON.print} Blätter zum Einrichten (PDF)</button> <span class="muted">je Person eine Seite mit QR-Code, in ihrer Sprache</span></p>` : ''}
       ${phones ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>ntfy-Thema</th><th>E-Mail</th><th>Von selbst an die Handynummer</th><th>Handy geprüft</th><th></th></tr></thead><tbody>${phones}</tbody></table></div>` : '<p class="muted">Noch niemand ausgewählt.</p>'}
-      <label class="check"><input type="checkbox" id="al-office" ${d.topics.office ? 'checked' : ''}><span>Büro-Handy in Stufe 2${d.topics.office ? `: Thema <code>${esc(d.topics.office)}</code> <button class="btn small" data-action="wx-alarm-copy" data-text="${esc(d.topics.office)}">kopieren</button>` : ''}</span></label>
+      <label class="check"><input type="checkbox" id="al-office" ${d.topics.office ? 'checked' : ''}><span>Büro-Handy in Stufe 2${d.topics.office ? `: Thema <code>${esc(d.topics.office)}</code> <button class="btn small" data-action="wx-alarm-copy" data-text="${esc(d.topics.office)}">kopieren</button> <button class="btn small" data-action="wx-alarm-copy" data-text="${esc(alarmSetupLink(address(), d.topics.office))}">Link „Handy einrichten“</button>` : ''}</span></label>
+      <label class="check"><input type="checkbox" id="al-confirm" ${d.confirmToOffice !== false ? 'checked' : ''}><span>Büro-Handy bekommt eine Nachricht, sobald jemand „Bin wach“ tippt (leise, ohne Wecken)</span></label>
+      <h3>Haupt-Gerät: alles auf einen Blick</h3>
+      ${(() => {
+        const link = overviewLink(address(), d.blick)
+        return alarmSettings().transferred && link
+          ? `<p class="note">Auf dem Handy oder Tablet des Chefs bzw. im Büro: je Ort die Lage, der Alarm, wer wann bestätigt hat, Erinnerungen, welche Handys geprüft sind und was heute geräumt und gestreut wurde. Ohne Anmeldung, lädt jede Minute neu; am besten zum Startbildschirm hinzufügen. Der Link wirkt wie ein Passwort.</p>
+      <div class="toolbar"><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Übersicht öffnen</a><button class="btn" data-action="wx-alarm-copy" data-text="${esc(link)}">${ICON.copy} Link kopieren</button><button class="btn" data-action="wx-alarm-newblick" title="Wenn der Link in falsche Hände geraten ist: der alte gilt nach dem Übertragen nicht mehr">Neuer Link</button></div>`
+          : '<p class="muted">Nach „Speichern und übertragen“ gibt es hier den Link für die Übersicht auf einem Haupt-Gerät (ohne Anmeldung).</p>'
+      })()}
       <div class="form-grid">
         <label class="field wide"><span>Stufe 2 zusätzlich per E-Mail an</span><input type="text" id="al-officeemails" value="${esc(d.officeEmails || '')}" placeholder="z. B. office@…, mehrere mit Komma"></label>
         <label class="check wide"><input type="checkbox" id="al-emaill1" ${d.emailLevel1 ? 'checked' : ''}><span>Stufe 1 zusätzlich per E-Mail (weckt nachts nicht, gut als Nachweis)</span></label>
@@ -579,7 +590,7 @@ registerActions({
   'wx-alarm-download': () => {
     const d = readForm()
     const a = complete(d, d.locations)
-    Object.assign(d, { key: a.key, cronKey: a.cronKey, topics: a.topics })
+    Object.assign(d, { key: a.key, cronKey: a.cronKey, blick: a.blick, topics: a.topics })
     download('wetter-alarm.json', new Blob([`${JSON.stringify(fileFor(a, d.locations), null, 2)}\n`], { type: 'application/json' }))
     saveSettings(strip(a), d.locations)
     renderModal()
@@ -607,6 +618,12 @@ registerActions({
     } catch (err) {
       toast(`Gespeichert, aber nicht übertragen: ${err.message}`)
     }
+  },
+  'wx-alarm-newblick': () => {
+    const d = readForm()
+    d.blick = hex(12)
+    renderModal()
+    toast('Neuer Link für die Übersicht: nach „Speichern und übertragen“ gilt der alte nicht mehr.')
   },
   'wx-alarm-probe': async (el) => {
     const d = readForm()

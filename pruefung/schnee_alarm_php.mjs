@@ -20,6 +20,8 @@
 //     ohne Protokoll-Knopf), Grenze je Stunde, „Bin wach“ zur Probe, Stand „bereit“ je Thema (auch nach einem Alarm).
 // 11. Verschiedene Personen, Orte und Alarme: je Person „nur Schnee“ bzw. „nur Glätte“, je Ort, was weckt und eigene Regeln
 //     (Schneefall ab, so weit voraus); Weckruf wiederholen, bis jemand bestätigt (nur Push, dieselben Codes, höchstens n-mal).
+// 12. „Winterdienst auf einen Blick“ fürs Haupt-Gerät (Code, ohne Anmeldung): Alarme, wer bestätigt hat, Handys; Push ans
+//     Büro-Handy bei jeder ersten Bestätigung.
 // Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP), 19835 (SMS-Dienst), 19841 (SMS-Gateway).
 import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -576,6 +578,37 @@ try {
   b = await cron(hour(28) + 120, 'tag2')
   n = await neu()
   check('Anif um 04:02 (es schneit seit 04:00): jetzt geweckt', n.push.some((p) => p.topic === 'wd-anif') && !!b.orte.Anif.alarm, JSON.stringify(b.orte.Anif))
+
+  // ---------------------------------------------------------------- 12. Auf einen Blick, Bestätigung ans Büro
+  const BLICK = 'b1c2d3e4f5a6b1c2d3e4f5a6'
+  r = await api('speichern', { method: 'POST', json: { ...vielfalt, blick: BLICK, bestaetigungAnBuero: true } })
+  check('Einstellungen mit Code für die Übersicht und „Bestätigung ans Büro“', r.status === 200)
+  await neu()
+  const blick = async (k) => {
+    const res = await fetch(`http://127.0.0.1:${HTTP}/wetter-alarm.php?aktion=blick&k=${k}`)
+    return { status: res.status, html: await res.text(), refresh: res.headers.get('refresh') || '', robots: res.headers.get('x-robots-tag') || '' }
+  }
+  let bl = await blick('0'.repeat(24))
+  check('Übersicht mit falschem Code: 404, nichts verraten', bl.status === 404 && !/Dragan|Salzburg/.test(bl.html))
+  check('Übersicht ohne Code: 404', (await blick('')).status === 404)
+  r = await api('test', { method: 'POST', extra: '&ort=Salzburg' })
+  n = await neu()
+  const tD12 = tokenOf(n.push.find((p) => p.topic === 'wd-dragan') || { actions: [] })
+  check('Testalarm Salzburg an Dragan und Mehmet', r.json.Salzburg.personen === 2 && tD12.length === 24)
+  r = await api('wach', { method: 'POST', key: '', extra: `&t=${tD12}` })
+  n = await neu()
+  const conf = n.push.find((p) => p.topic === 'wd-buero')
+  check('„Bin wach“: das Büro-Handy bekommt eine leise Nachricht mit Name und Uhrzeit, Klick öffnet die Übersicht', r.status === 200 && !!conf && conf.title === 'Testalarm bestätigt: Winterdienst Salzburg' && conf.message === 'Dragan Jović ist wach (02:05 Uhr).' && conf.priority === 3 && conf.click === `http://127.0.0.1:${HTTP}/wetter-alarm.php?aktion=blick&k=${BLICK}`, JSON.stringify(conf || {}))
+  await api('wach', { method: 'POST', key: '', extra: `&t=${tD12}` })
+  n = await neu()
+  check('Zweimal getippt: keine zweite Nachricht ans Büro', !n.push.length)
+  bl = await blick(BLICK)
+  const txt = flat(bl.html)
+  check('Übersicht: Titel, Stand, lädt jede Minute neu, nicht für Suchmaschinen', bl.status === 200 && /Winterdienst auf einen Blick/.test(txt) && bl.refresh === '60' && /noindex/.test(bl.robots), `${bl.status} ${bl.refresh}`)
+  check('Übersicht Salzburg: Testalarm bestätigt, Dragan ✓ wach, Mehmet noch nicht', /Salzburg/.test(txt) && /Testalarm 10\.12\. 02:05 Uhr – bestätigt/.test(txt) && /✓ Dragan Jović – wach 02:05 Uhr/.test(txt) && /… Mehmet Yılmaz – noch nicht bestätigt/.test(txt), txt.slice(txt.indexOf('Salzburg'), txt.indexOf('Salzburg') + 300))
+  check('Übersicht Anif: Alarm noch niemand bestätigt, mit Erinnerungen', /Anif/.test(txt) && /Alarm 11\.12\. 04:02 Uhr – noch niemand bestätigt/.test(txt), txt.slice(txt.indexOf('Anif'), txt.indexOf('Anif') + 200))
+  check('Übersicht: Handys in Stufe 1 mit „bereit“ bzw. „noch nicht geprüft“, Protokoll des Alarms', /Handys in Stufe 1/.test(txt) && /✓ Dragan Jović/.test(txt) && /Handy noch nicht geprüft/.test(txt) && /Protokoll des Alarms/.test(txt))
+  check('Übersicht verrät keine Codes und keine Themen', !bl.html.includes(tD12) && !bl.html.includes('wd-dragan') && !bl.html.includes(KEY))
 } catch (err) {
   check('Ablauf ohne Ausnahme', false, String(err?.stack || err).slice(0, 900))
 }
