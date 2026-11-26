@@ -427,15 +427,17 @@
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault()
       if (form.dataset.laeuft) return
-      const stopp = form.dataset.mwwStopp || ''
+      // „Problem melden“: eigenes Formular ohne Entwurf und ohne die Fotos des Abschlusses
+      const problem = form.hasAttribute('data-mww-problem')
+      const stopp = form.dataset.mwwStopp || form.dataset.mwwProblemStopp || ''
       const art = form.querySelector('input[name=art]').value
-      const e = stopp ? entwurf(stopp) : null
+      const e = stopp && !problem ? entwurf(stopp) : null
       const id = e?.felder?.meldung || form.querySelector('input[name=meldung]').value
       form.querySelector('input[name=meldung]').value = id
       form.querySelector('input[name=zeit]').value = String(Date.now())
       const felder = []
       for (const [k, v] of new FormData(form)) if (typeof v === 'string') felder.push([k, v])
-      const m = { id, tour: TOUR, stopp, art, felder, fotos: stopp ? fotosVon(stopp) : [], ziel: form.getAttribute('action') }
+      const m = { id, tour: TOUR, stopp, art, felder, fotos: stopp && !problem ? fotosVon(stopp) : [], ziel: form.getAttribute('action') }
       form.dataset.laeuft = '1'
       const knopf = form.querySelector('button[type=submit]')
       const vorher = knopf?.textContent
@@ -450,7 +452,7 @@
       delete form.dataset.laeuft
       if (knopf) knopf.textContent = vorher
       if (r && (r.status === 200 || r.status === 409)) {
-        if (stopp) speicher.schreiben(ENTWURF(stopp), null)
+        if (stopp && !problem) speicher.schreiben(ENTWURF(stopp), null)
         location.assign(r.json?.weiter || `?tour=${encodeURIComponent(TOUR)}${stopp ? `&stopp=${encodeURIComponent(stopp)}` : ''}`)
         return
       }
@@ -460,6 +462,17 @@
       }
       // kein Netz (oder der Webspace antwortet nicht): im Gerät behalten und nachsenden
       einreihen(m)
+      if (problem) {
+        // ohne Netz: im Ausgang, das Formular wieder frei (neue Kennung für eine weitere Meldung)
+        form.reset()
+        form.querySelector('input[name=meldung]').value = kennung()
+        const ok = form.querySelector('[data-mww-problem-ok]')
+        if (ok) {
+          ok.textContent = T.problem_wartet || ''
+          ok.hidden = false
+        }
+        return
+      }
       if (art === 'start') {
         form.remove()
         const p = wurzel.querySelector('[data-mww-tourstatus]')

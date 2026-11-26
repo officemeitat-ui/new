@@ -55,6 +55,9 @@ const FERTIG = ['abgeschlossen', 'teilweise', 'nicht-angetroffen', 'nicht-durchg
 const AUSNAHMEN = ['nicht-angetroffen', 'teilweise', 'nicht-durchgefuehrt'];
 // Vorschläge wie in der App (core/matten-fahrt.js); der Wert bleibt deutsch (das Büro liest ihn), angezeigt wird die Übersetzung
 const GRUENDE = ['kein Zugang' => 'mt_grund_zugang', 'Kunde nicht angetroffen' => 'mt_grund_nicht_da', 'Matte nicht vorhanden' => 'mt_grund_matte', 'Liegeplatz belegt (Baustelle, Umbau)' => 'mt_grund_belegt', 'Kunde wünscht keinen Wechsel' => 'mt_grund_kein_wechsel'];
+// Meldung ans Büro (Problem am Stopp): Art → Text der Seite; dieselben Arten wie in der App (core/matten-meldungen.js)
+const PROBLEM_ARTEN = ['schaden' => 'mt_problem_schaden', 'fehlt' => 'mt_problem_fehlt', 'verschmutzt' => 'mt_problem_verschmutzt', 'kunde' => 'mt_problem_kunde', 'zugang' => 'mt_problem_zugang', 'sonstiges' => 'mt_problem_sonstiges'];
+const PROBLEM_DE = ['schaden' => 'Matte beschädigt', 'fehlt' => 'Matte fehlt', 'verschmutzt' => 'Matte stark verschmutzt', 'kunde' => 'Beschwerde des Kunden', 'zugang' => 'Zugang oder Schlüssel', 'sonstiges' => 'Sonstiges'];
 const OHNE_GRUENDE = ['niemand vor Ort' => 'mt_ohne_niemand', 'Kunde nicht angetroffen' => 'mt_grund_nicht_da', 'keine Zeit beim Kunden' => 'mt_ohne_zeit', 'Bestätigung folgt per E-Mail' => 'mt_ohne_mail'];
 const ROLLEN = ['Kunde' => 'mt_rolle_kunde', 'Hausbetreuung' => 'mt_rolle_haus', 'Portier' => 'mt_rolle_portier', 'Hausverwaltung' => 'mt_rolle_verwaltung', 'Filialleitung' => 'mt_rolle_filiale'];
 const STATUS_TEXT = ['geplant' => 'mt_st_geplant', 'unterwegs' => 'mt_st_unterwegs', 'in-bearbeitung' => 'mt_st_bearbeitung', 'abgeschlossen' => 'mt_st_abgeschlossen', 'teilweise' => 'mt_st_teilweise', 'nicht-angetroffen' => 'mt_st_nicht_da', 'nicht-durchgefuehrt' => 'mt_st_nicht_durchgefuehrt', 'freigegeben' => 'mt_st_freigegeben'];
@@ -842,6 +845,7 @@ const SEITE_STIL = '<style>'
     . '.mww-fotos button{position:absolute;top:-6px;right:-6px;width:32px;height:32px;min-height:0;margin:0;padding:0;border-radius:999px;font-size:1rem;background:#b3261e}'
     . '.mww-kamera{position:relative;display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;border:2px dashed #0a5a96;border-radius:10px;color:#0a5a96;font-weight:600;margin:.5rem 0 0;cursor:pointer}.mww-kamera input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.mww-kamera:focus-within{outline:3px solid #0a5a96;outline-offset:2px}'
     . '.mww-abschluss{border-top:2px solid #dde5ea;margin-top:1.2rem;padding-top:.4rem}.mww-unterschrift canvas{display:block;width:100%;aspect-ratio:3/1;border:1px dashed #8a9aa5;border-radius:8px;background:#fff;touch-action:none}'
+    . '.mww-problem{margin:1rem 0;border:1px solid #d9dee5;border-radius:12px;padding:.6rem .8rem}.mww-problem summary{font-weight:600;cursor:pointer;min-height:44px;display:flex;align-items:center}.mww-probleme{margin:.3rem 0 .6rem;padding-left:1.1rem}.mww-problem .haken{display:flex;gap:.5rem;align-items:center;min-height:40px}'
     . '.mww-fertig{background:#eef6e2;border-radius:12px;padding:.8rem;margin:.9rem 0}.mww-fertig.ausnahme{background:#fdf0d5}.mww-fertig h3{margin:0 0 .3rem;font-size:1.1rem}'
     . '.mww-ausgang{background:#fdf0d5;color:#6b4100;border-radius:10px;padding:.6rem .8rem;margin:.6rem 0}.mww-ausgang button{margin-top:.5rem}'
     . 'details.mww-ausnahmen summary{min-height:44px;display:flex;align-items:center;font-weight:600;cursor:pointer;color:#0a5a96}'
@@ -983,7 +987,7 @@ if ($aktion === 'meldung' && $methode === 'POST') {
     $art = (string) ($_POST['art'] ?? '');
     $mid = (string) ($_POST['meldung'] ?? '');
     $eintrag = $meine[$tid] ?? null;
-    if (!$eintrag || !preg_match(MELDUNG_MUSTER, $mid) || !in_array($art, ['start', 'unterwegs', 'abschluss'], true)) {
+    if (!$eintrag || !preg_match(MELDUNG_MUSTER, $mid) || !in_array($art, ['start', 'unterwegs', 'abschluss', 'problem'], true)) {
         $antwort(404, 'mt_tour_weg');
     }
     $tour = $eintrag['datei']['tour'];
@@ -1010,6 +1014,23 @@ if ($aktion === 'meldung' && $methode === 'POST') {
             @unlink(foto_pfad($tmp));
         }
     };
+    if ($art === 'problem') {
+        // Meldung ans Büro: Art, Liegeplatz (optional, aus dem Stopp), Text; Prüfung wie in der App (reportProblem)
+        $pArt = (string) ($_POST['problem_art'] ?? '');
+        $pLp = (string) ($_POST['liegeplatz'] ?? '');
+        $pText = kurz($_POST['problem_text'] ?? '', 1000);
+        if (!isset(PROBLEM_ARTEN[$pArt])) {
+            $antwort(400, 'mt_fehler_problem_art', [], ['stopp' => $sid]);
+        }
+        if ($pLp !== '' && !in_array($pLp, array_column($stopp['liegeplaetze'], 'id'), true)) {
+            $pLp = '';
+        }
+        $ohneText = in_array($pArt, ['schaden', 'fehlt'], true) ? ($pLp === '' && $pText === '') : mb_strlen($pText) < 3;
+        if ($ohneText) {
+            $antwort(400, 'mt_fehler_problem_text', [], ['stopp' => $sid]);
+        }
+        $m['daten'] = ['art' => $pArt, 'liegeplatz' => $pLp, 'text' => $pText];
+    }
     if ($art === 'abschluss') {
         [$daten, $fehler, $werte] = abschluss_lesen($stopp);
         if ($fehler) {
@@ -1077,8 +1098,23 @@ if ($aktion === 'meldung' && $methode === 'POST') {
             }
         }
     }
+    // Problem gemeldet: Büro benachrichtigen (ohne Kundennamen, Push geht über einen fremden Dienst)
+    if ($ergebnis === 'ok' && $art === 'problem') {
+        $nr = (int) array_search($sid, array_column($tour['stopps'], 'id'), true) + 1;
+        $titel = 'Matten-Tour ' . $tour['fahrer']['name'] . ': Meldung bei Stopp ' . $nr;
+        $text = (PROBLEM_DE[$m['daten']['art']] ?? 'Meldung') . '. Tour vom ' . datum_sprache($tour['datum'], false, 'de') . ".\nDie App holt die Meldung ab (Matten-Übersicht, „Meldungen der Fahrer“).";
+        $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#mw-uebersicht';
+        foreach ((array) ($e['buero'] ?? []) as $b) {
+            if (!empty($b['ntfy'])) {
+                ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => $text, 'priority' => 4, 'tags' => ['warning'], 'click' => $app]);
+            }
+            if (!empty($b['email'])) {
+                mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Matten-Tour');
+            }
+        }
+    }
     $next = naechster_stopp($tour, $st, $art === 'start' ? '' : $sid);
-    $weiter = 'mattentour.php?tour=' . rawurlencode($tid) . ($art !== 'start' && $next && $art === 'abschluss' ? '&stopp=' . rawurlencode($next['id']) : ($art === 'unterwegs' ? '&stopp=' . rawurlencode($sid) : '')) . '&gesendet=' . $art;
+    $weiter = 'mattentour.php?tour=' . rawurlencode($tid) . ($art !== 'start' && $next && $art === 'abschluss' ? '&stopp=' . rawurlencode($next['id']) : (in_array($art, ['unterwegs', 'problem'], true) ? '&stopp=' . rawurlencode($sid) : '')) . '&gesendet=' . $art;
     if (will_json()) {
         json_ausgabe(200, ['ok' => true, 'doppelt' => $ergebnis !== 'ok', 'status' => $ergebnis === 'ok' ? ($m['status'] ?? '') : (string) ($st['stopps'][$sid]['status'] ?? ''), 'weiter' => $weiter]);
     }
@@ -1128,7 +1164,7 @@ if (!array_filter($stopps, fn ($s) => $s['id'] === $aktiv)) {
 }
 $tourUrl = 'mattentour.php?tour=' . rawurlencode($tid);
 $meldungsfelder = fn (string $art, string $sid = '') => $pFeld . '<input type="hidden" name="art" value="' . $art . '"><input type="hidden" name="tour" value="' . $h($tid) . '"><input type="hidden" name="stopp" value="' . $h($sid) . '"><input type="hidden" name="meldung" value="' . bin2hex(random_bytes(12)) . '"><input type="hidden" name="zeit" value="">';
-$gesendet = ['start' => 'mt_ok_start', 'abschluss' => 'mt_ok_abschluss'][(string) ($_GET['gesendet'] ?? '')] ?? '';
+$gesendet = ['start' => 'mt_ok_start', 'abschluss' => 'mt_ok_abschluss', 'problem' => 'mt_ok_problem'][(string) ($_GET['gesendet'] ?? '')] ?? '';
 $hinweis = $gesendet ? '<p class="ok" role="status">' . th($gesendet) . '</p>' : '';
 $naviLink = fn (array $s, string $cls = 'knopf') => '<a class="' . $cls . '" href="' . $h(navi_url($s)) . '" target="_blank" rel="noopener" data-mww-unterwegs="' . $h($s['id']) . '">' . th('mt_navigation') . '</a>';
 
@@ -1167,6 +1203,33 @@ $uebersicht = '<section class="mww-teil' . ($aktiv === '' ? ' aktiv' : '') . '" 
     . '<h2>' . th('mt_reihenfolge') . '</h2><ol class="mww-stopps">' . $liste . '</ol>'
     . '</section>';
 
+// „Problem melden“ je Stopp (auch nach dem Abschluss): eigenes Formular, nicht Teil des Abschlusses; darüber, was schon gemeldet ist
+$problemBlock = function (array $s, int $i) use ($h, $datei, $meldungsfelder): string {
+    $sid = $s['id'];
+    $schon = array_values(array_filter((array) ($datei['meldungen'] ?? []), fn ($m) => ($m['art'] ?? '') === 'problem' && ($m['stopp'] ?? '') === $sid));
+    $liste = '';
+    foreach ($schon as $m) {
+        $d = (array) ($m['daten'] ?? []);
+        $liste .= '<li><b>' . th(PROBLEM_ARTEN[$d['art'] ?? ''] ?? 'mt_problem_sonstiges') . '</b> · ' . th('mt_um', ['zeit' => uhr((int) ($m['zeit'] ?? 0))]) . (($d['text'] ?? '') !== '' ? '<br>' . $h((string) $d['text']) : '') . '</li>';
+    }
+    $arten = '';
+    foreach (PROBLEM_ARTEN as $wert => $key) {
+        $arten .= '<label class="haken"><input type="radio" name="problem_art" value="' . $wert . '"> ' . th($key) . '</label>';
+    }
+    $lp = '<option value="">' . th('mt_problem_ganz') . '</option>';
+    foreach ($s['liegeplaetze'] as $l) {
+        $lp .= '<option value="' . $h($l['id']) . '"' . (count($s['liegeplaetze']) === 1 ? ' selected' : '') . '>' . $h($l['name'] ?: t('mt_liegeplatz')) . '</option>';
+    }
+    return '<details class="mww-problem"' . ($schon ? ' open' : '') . '><summary>' . th('mt_problem') . ($schon ? ' (' . count($schon) . ')' : '') . '</summary>'
+        . ($liste ? '<ul class="mww-probleme">' . $liste . '</ul>' : '')
+        . '<form method="post" action="mattentour.php?aktion=meldung" data-mww-meldung data-mww-problem data-mww-problem-stopp="' . $h($sid) . '">' . $meldungsfelder('problem', $sid)
+        . '<fieldset style="min-width:0;border:0;padding:0;margin:0"><legend>' . th('mt_problem_art') . '</legend>' . $arten . '</fieldset>'
+        . '<label for="pr' . $i . '-l">' . th('mt_liegeplatz') . '</label><select id="pr' . $i . '-l" name="liegeplatz">' . $lp . '</select>'
+        . '<label for="pr' . $i . '-t">' . th('mt_problem_text') . '</label><textarea id="pr' . $i . '-t" name="problem_text" rows="2" maxlength="1000" placeholder="' . th('mt_problem_text_bsp') . '"></textarea>'
+        . '<p class="fehler" role="alert" data-mww-fehler hidden></p><p class="ok" role="status" data-mww-problem-ok hidden></p>'
+        . '<button type="submit" class="zweit">' . th('mt_problem_senden') . '</button><p class="leise">' . th('mt_problem_info') . '</p></form></details>';
+};
+
 // je Stopp ein Teil der Seite (mit Skript ohne Netz umschaltbar), offene mit dem Formular „Stopp abschließen“
 $grundOptionen = '<option value="">' . th('mt_grund_waehlen') . '</option>' . implode('', array_map(fn ($wert, $key) => '<option value="' . $h($wert) . '">' . th($key) . '</option>', array_keys(GRUENDE), GRUENDE));
 $ohneListe = implode('', array_map(fn ($wert, $key) => '<option value="' . $h($wert) . '">' . th($key) . '</option>', array_keys(OHNE_GRUENDE), OHNE_GRUENDE));
@@ -1185,6 +1248,7 @@ foreach ($stopps as $i => $s) {
         $m = $st['meldung'];
         $teil .= '<div class="mww-fertig' . ($st['status'] !== 'abgeschlossen' ? ' ausnahme' : '') . '"><h3>' . status_pill($st['status']) . ($m ? ' ' . th('mt_um', ['zeit' => uhr((int) $m['zeit'])]) : '') . '</h3><p>' . th('mt_fertig_fest') . '</p></div>';
         $n = naechster_stopp($tour, $stand, $sid);
+        $teil .= $problemBlock($s, $i);
         $teil .= $n ? '<a class="knopf" href="' . $h($tourUrl . '&stopp=' . rawurlencode($n['id'])) . '" data-mww-zu="' . $h($n['id']) . '">' . th('mt_naechster', ['name' => $h(stopp_titel($n))]) . '</a>' : '<a class="knopf zweit" href="' . $h($tourUrl) . '" data-mww-zu="">' . th('mt_zur_uebersicht') . '</a>';
         $teile .= '<section class="mww-teil' . ($aktiv === $sid ? ' aktiv' : '') . '" id="stopp-' . $h($sid) . '" data-mww-teil="' . $h($sid) . '">' . $teil . '</section>';
         continue;
@@ -1234,11 +1298,12 @@ foreach ($stopps as $i => $s) {
         . '<p class="fehler" role="alert" data-mww-fehler hidden></p>'
         . '<button type="submit">' . th('mt_stopp_abschliessen') . '</button><p class="leise">' . th('mt_abschluss_info') . '</p></section>';
     $teil .= '<form method="post" action="mattentour.php?aktion=meldung" enctype="multipart/form-data" data-mww-meldung data-mww-stopp="' . $h($sid) . '">' . $meldungsfelder('abschluss', $sid) . $form . '</form>';
+    $teil .= $problemBlock($s, $i);
     $teile .= '<section class="mww-teil' . ($aktiv === $sid ? ' aktiv' : '') . '" id="stopp-' . $h($sid) . '" data-mww-teil="' . $h($sid) . '">' . $teil . '</section>';
 }
 $listen = '<datalist id="mww-rollen">' . $rollenListe . '</datalist><datalist id="mww-ohne">' . $ohneListe . '</datalist>';
 // Texte für das Skript (in der Sprache der Seite)
-$skriptTexte = ['ausgang' => t('mt_ausgang'), 'ausgang_n' => t('mt_ausgang_n'), 'senden' => t('mt_jetzt_senden'), 'gesendet' => t('mt_wird_gesendet'), 'foto_weg' => t('mt_foto_entfernen'), 'foto_max' => t('mt_fehler_foto_max', ['n' => (string) FOTO_MAX]), 'foto_speicher' => t('mt_foto_speicher'), 'wartet' => t('mt_wartet'), 'nicht_gesendet' => t('mt_nicht_gesendet'), 'naechster' => t('mt_naechster'), 'uebersicht' => t('mt_zur_uebersicht'), 'gesendet_kurz' => t('mt_sendet')];
+$skriptTexte = ['problem_wartet' => t('mt_problem_wartet'), 'ausgang' => t('mt_ausgang'), 'ausgang_n' => t('mt_ausgang_n'), 'senden' => t('mt_jetzt_senden'), 'gesendet' => t('mt_wird_gesendet'), 'foto_weg' => t('mt_foto_entfernen'), 'foto_max' => t('mt_fehler_foto_max', ['n' => (string) FOTO_MAX]), 'foto_speicher' => t('mt_foto_speicher'), 'wartet' => t('mt_wartet'), 'nicht_gesendet' => t('mt_nicht_gesendet'), 'naechster' => t('mt_naechster'), 'uebersicht' => t('mt_zur_uebersicht'), 'gesendet_kurz' => t('mt_sendet')];
 mt_seite($kopf . '<div data-mww-tour="' . $h($tid) . '" data-mww-texte="' . $h((string) json_encode($skriptTexte, JSON_UNESCAPED_UNICODE)) . '">'
     . '<div class="mww-ausgang" data-mww-ausgang hidden role="status"></div>'
     . $uebersicht . $teile . $listen . '</div>' . $fuss);

@@ -2507,6 +2507,7 @@ Am Stopp „Problem melden“ antippen: was passiert ist (Matte beschädigt, feh
 
 > Tipp: Ein Foto nimmst du am Liegeplatz auf; das Büro sieht es zur Meldung.
 > Tipp: Melden geht auch nach dem Abschluss des Stopps.
+> Tipp: Fahrer ohne Microsoft-Konto melden auf ihrer Fahrerseite genauso („Problem melden“ am Stopp).
 > Tipp: Reklamationen anlegen darf, wer die Reklamationen bearbeitet.
 
 *Melden: Fahrer Mattenwechsel; Bearbeiten: Mattenwechsel Büro, Vollzugriff*

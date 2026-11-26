@@ -16,6 +16,7 @@
 
 import { addPlacementPhoto, confirmPlacement, finishStop, isFinal, localDate, markNotPossible, orderedStops, photoPath, placementsOf, setPlacementNote, setQuantity, setStopStatus, startTour } from './matten-fahrt.js'
 import { loadList } from './matten-tour.js'
+import { addReport, REPORT_KINDS } from './matten-meldungen.js'
 
 export const WEB_PAGE = 'mattentour.php'
 /** So lange (Tage nach dem Tag der Tour) bleiben Touren, Meldungen und Fotos höchstens am Webspace. */
@@ -152,7 +153,7 @@ export function webSignatureSvg(path) {
 
 // ---------------------------------------------------------------- Meldungen vom Webspace
 
-const ARTEN = ['start', 'unterwegs', 'abschluss']
+const ARTEN = ['start', 'unterwegs', 'abschluss', 'problem']
 const ERGEBNISSE = ['gewechselt', 'nicht-moeglich', '']
 const AUSNAHMEN = ['nicht-angetroffen', 'teilweise', 'nicht-durchgefuehrt']
 
@@ -164,6 +165,13 @@ export function cleanWebEvent(m) {
   const zeit = Number(m.zeit) > 0 ? Math.round(Number(m.zeit)) : Math.round(Number(m.eingang) || 0)
   const out = { id, art: m.art, tour: String(m.tour), stopp: text(m.stopp), zeit, eingang: Math.round(Number(m.eingang) || zeit), fahrer: text(m.fahrer) }
   if (m.art !== 'start' && !out.stopp) return null
+  if (m.art === 'problem') {
+    // Meldung ans Büro (core/matten-meldungen.js): Art, Liegeplatz, Text
+    const d = m.daten && typeof m.daten === 'object' ? m.daten : {}
+    if (!Object.hasOwn(REPORT_KINDS, d.art || '')) return null
+    out.daten = { art: d.art, liegeplatz: text(d.liegeplatz).slice(0, 80), text: text(d.text).slice(0, 1000) }
+    return out
+  }
   if (m.art !== 'abschluss') return out
   const d = m.daten && typeof m.daten === 'object' ? m.daten : {}
   out.daten = {
@@ -294,7 +302,14 @@ export function applyWebEvents(tour, events = [], { now = new Date().toISOString
           skipped.push({ id: ev.id, reason: 'Diesen Stopp gibt es in der Tour nicht mehr.' })
           continue
         }
-        if (ev.art === 'unterwegs') {
+        if (ev.art === 'problem') {
+          // Meldung ans Büro: am Stopp wie aus der App (auch nach dem Abschluss); dieselbe Meldung nur einmal
+          const id = `mr${ev.id}`.slice(0, 34)
+          if (!(stop.reports || []).some((r) => r.id === id)) {
+            const pl = hasPlacement(stop, ev.daten.liegeplatz) ? ev.daten.liegeplatz : ''
+            t = addReport(t, ev.stopp, { kind: ev.daten.art, placementId: pl, text: ev.daten.text || (pl ? '' : REPORT_KINDS[ev.daten.art]), id, now: at, by: who })
+          }
+        } else if (ev.art === 'unterwegs') {
           if (!isFinal(stop) && (stop.status || 'geplant') === 'geplant') t = setStopStatus(t, ev.stopp, 'unterwegs', { now: at, by: who })
         } else {
           const targets = webPhotoTargets(t, ev).filter((p) => hasPlacement(stop, p.placementId))

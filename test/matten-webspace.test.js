@@ -281,3 +281,21 @@ test('Zusammenführen: Meldung vom Webspace und gleichzeitige Änderung im Büro
   assert.deepEqual(merged.webspace.applied, ['abschluss0001aa'])
   assert.equal(merged.status, 'unterwegs')
 })
+
+test('Problem gemeldet am Webspace → Meldung am Stopp (auch nach dem Abschluss), einmal; Unbrauchbares fällt weg', () => {
+  const problem = (extra = {}, daten = {}) => ({ id: 'problem0001aa', art: 'problem', tour: 'mtwebweb000001', stopp: 'st-o1', zeit: unix(8, 50), eingang: unix(8, 51), fahrer: 'Ivo Beispiel', daten: { art: 'schaden', liegeplatz: 'Haupteingang', text: 'Rand eingerissen', ...daten }, ...extra })
+  assert.equal(cleanWebEvent(problem({}, { art: 'gibtsnicht' })), null)
+  assert.equal(cleanWebEvent(problem({ stopp: '' })), null)
+  assert.equal(cleanWebEvent(problem({}, { text: 'x'.repeat(2000) })).daten.text.length, 1000)
+  const r = applyWebEvents(tour(), [abschluss(), problem(), problem({ id: 'problem0002aa' }, { art: 'kunde', liegeplatz: 'gibtsnicht', text: 'Kunde möchte größere Matte' })], { now: NOW })
+  assert.deepEqual(r.applied, ['abschluss0001aa', 'problem0001aa', 'problem0002aa'])
+  const s = r.tour.stops[0]
+  assert.ok(isFinal(s), 'Stopp abgeschlossen, Meldung trotzdem dabei')
+  assert.deepEqual(s.reports.map((x) => [x.id, x.kind, x.placementId || '', x.text, x.by, x.at]), [
+    ['mrproblem0001aa', 'schaden', 'Haupteingang', 'Rand eingerissen', 'Ivo Beispiel', `${DAY}T07:50:00.000Z`],
+    ['mrproblem0002aa', 'kunde', '', 'Kunde möchte größere Matte', 'Ivo Beispiel', `${DAY}T07:50:00.000Z`],
+  ])
+  // dieselbe Meldung noch einmal (z. B. vor dem Übernehmen erneut abgeholt): keine zweite
+  const again = applyWebEvents({ ...r.tour, webspace: { ...r.tour.webspace, applied: [] } }, [problem()], { now: NOW })
+  assert.equal(again.tour.stops[0].reports.length, 2)
+})

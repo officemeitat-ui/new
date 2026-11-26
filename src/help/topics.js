@@ -2087,7 +2087,7 @@ export const TOPICS = [
     q: ['problem melden', 'matte kaputt', 'matte beschädigt', 'matte fehlt', 'kunde beschwert sich', 'schaden melden fahrer', 'meldung ans büro', 'reklamation fahrer'],
     answer: 'Am Stopp „Problem melden“ antippen: was passiert ist (Matte beschädigt, fehlt, stark verschmutzt, Beschwerde, Zugang), den Liegeplatz und kurz was genau. Das Büro sieht die Meldung in der Matten-Übersicht und unter „Zu erledigen“ und macht bei Bedarf eine Reklamation daraus.',
     steps: ['Den Stopp öffnen.', 'Unten „Problem melden“ antippen.', 'Art wählen, Liegeplatz wählen, kurz beschreiben, „Melden“.', 'Im Büro: Matten-Übersicht → „Als Reklamation“ oder „Erledigt“.'],
-    tips: ['Ein Foto nimmst du am Liegeplatz auf; das Büro sieht es zur Meldung.', 'Melden geht auch nach dem Abschluss des Stopps.', 'Reklamationen anlegen darf, wer die Reklamationen bearbeitet.'],
+    tips: ['Ein Foto nimmst du am Liegeplatz auf; das Büro sieht es zur Meldung.', 'Melden geht auch nach dem Abschluss des Stopps.', 'Fahrer ohne Microsoft-Konto melden auf ihrer Fahrerseite genauso („Problem melden“ am Stopp).', 'Reklamationen anlegen darf, wer die Reklamationen bearbeitet.'],
     action: { action: 'mwu-reports-goto', label: 'Meldungen im Büro' },
     roles: 'Melden: Fahrer Mattenwechsel; Bearbeiten: Mattenwechsel Büro, Vollzugriff',
     related: ['mw-touren', 'mw-stopp'],
