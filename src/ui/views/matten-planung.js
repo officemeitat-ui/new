@@ -25,6 +25,7 @@ import { mergeJobs, nextWorkday, yearsFor } from '../../core/matten-einsaetze.js
 import { activeAreas, emptyMatten, upgradeMatten } from '../../core/matten.js'
 import { assignDriver, duplicateStopIds, loadList, moveStop, proposeTours, retimeTour, routeRetime, stopsFromJobs, timedBy, tourId, TOUR_REASONS, TOUR_STATUS, tourProblems } from '../../core/matten-tour.js'
 import { fixedTour, splitByRoutes } from '../../core/matten-stammtouren.js'
+import { duplicateStops, HANDOVER_FROM, handoverProblems, handoverTargets, jobsAfterHandover, movableProblem, movableStops, moveStopsIn, moveStopsOut, stopLabel } from '../../core/matten-umplanung.js'
 import {
   addStop,
   assignJobs,
@@ -306,12 +307,15 @@ function stopRow(t, s, i, { ed, others }) {
         `Stopp ${i + 1}: weitere Aktionen`,
       )}</div>`
     : ''
+  // Umplanung am Tag: unberührter Stopp einer freigegebenen bzw. laufenden Tour an einen anderen Fahrer
+  const ho = ed && HANDOVER_FROM.includes(t.status) && t.date >= todayISO() && !movableProblem(s) ? `<div class="mw-tp-ctl"><button class="btn small" data-action="mw-tp-ho-open" data-tour="${esc(t.id)}" data-stop="${esc(s.id)}" title="An einen anderen Fahrer geben">Umplanen</button></div>` : ''
+  const from = s.handedFrom ? `<br><span class="pill info">umgeplant von ${esc(s.handedFrom.driverName || 'anderer Tour')}</span>` : ''
   return `<li class="mw-tp-stop" data-stop="${esc(s.id)}" ${canEdit ? 'draggable="true"' : ''}>
     <span class="mw-tp-no" aria-label="Stopp ${i + 1}">${i + 1}</span>
     <div class="mw-tp-time">${timeText(s)}${sollIstHtml(s, t.date)}</div>
-    <div class="mw-tp-where"><strong>${esc(s.customer?.name || 'Kunde')}</strong>${s.objectName ? ` · ${esc(s.objectName)}` : ''}${s.address ? `<br><span class="muted">${esc(s.address)}</span>` : ''}${win ? `<br><span class="mw-tp-win">${esc(win)}</span>` : ''}</div>
+    <div class="mw-tp-where"><strong>${esc(s.customer?.name || 'Kunde')}</strong>${s.objectName ? ` · ${esc(s.objectName)}` : ''}${s.address ? `<br><span class="muted">${esc(s.address)}</span>` : ''}${win ? `<br><span class="mw-tp-win">${esc(win)}</span>` : ''}${from}</div>
     <ul class="mw-tp-items">${items}</ul>
-    ${ctl}
+    ${ctl}${ho}
   </li>`
 }
 
@@ -343,6 +347,11 @@ function tourCard(t, { ed, today, others }) {
   // (Fahrer ohne Konto: die Tour steht auf der Fahrerseite am Webspace)
   const webDriver = isWebDriver(driverOf(drivers(), t.driverId))
   if (t.driverId && !t.driverEmail && !webDriver && !tourOnWebspace(t)) probs.push({ code: 'email', text: `${t.driverName || 'Der Fahrer'} hat keine E-Mail: am Handy sieht er die Tour nicht als seine („Mehr“ → „Fahrer“).` })
+  // nach einer Umplanung: derselbe Einsatz offen in zwei Touren (der Fahrer hat ohne Netz am Stopp weitergearbeitet)
+  for (const d of duplicateStops(tourStore()?.tours() || [], t.date).filter((x) => x.tours.some((y) => y.id === t.id))) {
+    const others = d.tours.filter((y) => y.id !== t.id).map((y) => y.driverName || 'ohne Fahrer').join(', ')
+    probs.push({ code: 'doppelt', text: `${d.label}: steht auch in der Tour von ${others}. Bitte in einer der Touren entfernen bzw. dort nicht anfahren.` })
+  }
   const warn = probs.length ? `<ul class="mw-tp-warn" aria-label="Warnungen">${probs.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul>` : ''
   const relHtml = rel.length ? `<div class="mw-tp-rel" role="alert"><strong>Freigabe nicht möglich:</strong><ul>${rel.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul></div>` : ''
   const lockHtml = locked ? `<p class="note">Die Tour ist ${t.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'}: die Tourenplanung ändert sie nicht mehr. Einzelne Stopps korrigiert das Büro in „Matten-Touren“.</p>` : t.status === 'freigegeben' ? '<p class="note">Freigegeben: der Fahrer sieht die Tour. Zum Ändern zuerst „Freigabe zurücknehmen“.</p>' : ''
@@ -593,6 +602,116 @@ async function propose(el) {
 }
 
 // ---------------------------------------------------------------- Freigabe
+
+// ---------------------------------------------------------------- Umplanung am Tag (core/matten-umplanung.js)
+
+function handoverModal(c, m) {
+  const s = tourStore()
+  const from = s?.byId(m.tour)
+  if (!from) return ''
+  const movable = movableStops(from)
+  const targets = handoverTargets(s.tours(), from)
+  const taken = new Set(targets.map((t) => t.driverId).filter(Boolean))
+  const free = drivers().filter((d) => d.active && driverKey(d) !== from.driverId && !taken.has(driverKey(d)))
+  const status = { entwurf: 'Entwurf', freigegeben: 'freigegeben', unterwegs: 'unterwegs' }
+  const choices = [
+    ...targets.map((t) => [`tour:${t.id}`, `Tour von ${t.driverName || 'ohne Fahrer'} (${status[t.status] || t.status}, ${(t.stops || []).length} Stopps)`]),
+    ...free.map((d) => [`neu:${driverKey(d)}`, `Neue Tour für ${d.name} (gleich freigegeben)`]),
+  ]
+  const sel = new Set(m.stops || [])
+  const rows = movable.map((x, i) => `<label class="check"><input type="checkbox" name="mw-ho-stop" id="mw-ho-s-${i}" value="${esc(x.id)}" ${sel.has(x.id) ? 'checked' : ''}><span>${esc(stopLabel(x))}${x.times?.arrival ? ` <span class="muted">(geplant ${esc(x.times.arrival)})</span>` : ''}</span></label>`).join('')
+  return modalFrame({
+    title: 'Umplanen',
+    subtitle: esc(`Tour von ${from.driverName || 'ohne Fahrer'}, ${formatDate(from.date)} (${status[from.status] || from.status})`),
+    body: `<fieldset class="mw-ho-stops"><legend>Welche Stopps?</legend>${rows || '<p class="muted">Kein Stopp lässt sich mehr abgeben (schon angefahren oder erledigt).</p>'}</fieldset>
+      ${movable.length > 1 ? '<p><button type="button" class="btn small" data-action="mw-tp-ho-all">Alle offenen Stopps (Rest der Tour)</button></p>' : ''}
+      <label class="field"><span>An</span><select id="mw-ho-to">${options(choices, m.to || '', { empty: choices.length ? '– Tour oder Fahrer wählen –' : 'keine andere Tour, kein freier Fahrer' })}</select></label>
+      <p class="note">Abgeben lassen sich nur Stopps, an denen der Fahrer noch nichts erfasst hat. Sein Handy zeigt sie nicht mehr, sobald es die Tour abgleicht. Hat er ohne Netz am Stopp schon weitergearbeitet, kommt der Stopp zurück; dann steht an beiden Touren „steht auch in der Tour von …“.</p>`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="mw-tp-ho" ${movable.length && choices.length ? '' : 'disabled'}>Umplanen</button></div>`,
+  })
+}
+registerModal('mw-tp-ho', handoverModal, { module: MODULE })
+
+function readHandover(m) {
+  if (!document.getElementById('mw-ho-to')) return m
+  m.stops = [...document.querySelectorAll('input[name="mw-ho-stop"]:checked')].map((x) => x.value)
+  m.to = val('mw-ho-to')
+  return m
+}
+
+/** Umplanen: Webspace abholen, frisch lesen, in die Zieltour, aus der Quelltour, Einsätze, Webspace neu übertragen. */
+async function handover(m) {
+  const s = tourStore()
+  const { stops: stopIds = [], to: choice = '' } = readHandover(m)
+  if (!stopIds.length) return toast('Bitte mindestens einen Stopp wählen.')
+  if (!choice) return toast('Bitte wählen, wer die Stopps übernimmt.')
+  const { now, by } = opts()
+  if (webReady()) await syncWebspace({ force: true }).catch(() => 0)
+  let from
+  let to
+  let driver = null
+  try {
+    from = await s.refresh(m.tour)
+    if (choice.startsWith('tour:')) to = await s.refresh(choice.slice(5))
+  } catch (err) {
+    return failed(err)
+  }
+  if (s.offline) return toast('Ohne Verbindung: Umplanen geht erst wieder mit Netz.')
+  if (!from) return toast('Diese Tour gibt es nicht mehr. Bitte neu laden.')
+  if (choice.startsWith('neu:')) {
+    driver = driverOf(drivers(), choice.slice(4))
+    if (!driver) return toast('Fahrer nicht gefunden.')
+    to = newTour({ date: from.date, driver, vehicle: vehicleOf(driver.vehicleId), depot: settings().depot || null, settings: settings(), newId: () => tourId(), now, by })
+  }
+  const problems = handoverProblems({ from, to, stopIds })
+  if (problems.length) {
+    renderModal()
+    return toast(problems[0])
+  }
+  const stops = from.stops.filter((x) => stopIds.includes(x.id))
+  // 1. in die Zieltour (zuerst: so geht kein Stopp verloren)
+  let saved
+  try {
+    if (driver) {
+      let identity = null
+      if (isWebDriver(driver)) {
+        if (!webReady()) return toast(`${driver.name} hat kein Microsoft-Konto: zuerst „Mehr“ → „Fahrerseite am Webspace“ einrichten.`)
+        identity = await webIdentityFor(driver)
+        if (!identity) return toast(webDriverProblem(driver) || `${driver.name}: noch kein Link zur Fahrerseite.`)
+      }
+      const next = await retime(moveStopsIn(to, stops, { from, now, by }))
+      saved = await s.save(withWebspace(releaseTour(next, { now, by, driver, photoRule: settings().photoRule }), identity), { online: true })
+    } else {
+      const office = ['entwurf', 'freigegeben'].includes(to.status)
+      const next = await s.update(to.id, (cur) => {
+        const x = moveStopsIn(cur, stops, { from, now, by })
+        return office ? retimeTour(x, routing()) : x
+      })
+      await s.flush()
+      if (s.isPending(to.id)) throw new Error('Die Zieltour ist noch nicht in SharePoint gespeichert. Bitte später noch einmal.')
+      saved = s.byId(to.id) || next
+    }
+  } catch (err) {
+    return failed(err)
+  }
+  // 2. aus der Quelltour (prüft frisch, ob die Stopps noch unberührt sind)
+  let removed = true
+  try {
+    await s.update(from.id, (cur) => moveStopsOut(cur, stopIds, { to: saved, now, by }))
+    await s.flush()
+  } catch (err) {
+    removed = false
+    toast(`In die Tour von ${saved.driverName || 'ohne Fahrer'} übernommen, aber nicht aus der Tour von ${from.driverName || 'ohne Fahrer'} entfernt: ${err?.message || err}. Bitte dort prüfen.`)
+  }
+  // 3. Einsätze auf die Zieltour
+  storeJobs(jobsAfterHandover(jobsAll(), stops, saved, { now, by }))
+  // 4. Fahrerseite am Webspace: beide Touren neu übertragen
+  const web = []
+  for (const t of [s.byId(from.id), s.byId(saved.id)]) if (t && tourOnWebspace(t)) web.push(await publishWebTour(t))
+  closeModal()
+  renderNow()
+  if (removed) toast(`${stops.length === 1 ? `„${stopLabel(stops[0])}“` : `${stops.length} Stopps`} an ${saved.driverName || 'die andere Tour'} gegeben.${driver ? ' Neue Tour ist freigegeben.' : ''}${web.includes(false) ? ' Achtung: an die Fahrerseite am Webspace noch nicht übertragen (siehe Tour).' : ''}`)
+}
 
 async function release(id) {
   const s = tourStore()
@@ -1113,6 +1232,13 @@ registerActions(
         await saveAll([await retime(addStop(t, stop, opts()))], `Stopp zur Tour von ${t.driverName || 'ohne Fahrer'} hinzugefügt.`)
       }),
     'mw-tp-release': (el) => run(() => release(el.dataset.tour)),
+    'mw-tp-ho-open': (el) => openModal({ type: 'mw-tp-ho', tour: el.dataset.tour, stops: el.dataset.stop ? [el.dataset.stop] : [] }),
+    'mw-tp-ho-all': () => {
+      const m = readHandover(app.ui.modal)
+      m.stops = movableStops(tourStore()?.byId(m.tour)).map((x) => x.id)
+      renderModal()
+    },
+    'mw-tp-ho': () => run(() => handover(app.ui.modal)),
     'mw-tp-withdraw': (el) => run(() => withdraw(el.dataset.tour)),
     // Ankündigung an die Kunden der freigegebenen Tour (E-Mail mit Tag und Zeitfenster)
     'mw-tp-avis-open': (el) => openModal({ type: 'mw-tp-avis', tour: el.dataset.tour }),

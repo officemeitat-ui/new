@@ -332,13 +332,14 @@ function tourView(tour) {
         <span class="mwf-no" aria-hidden="true">${i + 1}</span>
         <span class="mwf-stop-text"><span class="mwf-card-top"><strong>${esc(stopTitle(s))}</strong> ${stopPill(s)}</span>
           <span>${esc(s.objectName || '')}${s.address ? ` · ${esc(s.address)}` : ''}</span>
-          <span class="muted">${esc([plural(pls.length, 'Liegeplatz', 'Liegeplätze'), mats, time, windowText(s)].filter(Boolean).join(' · '))}</span></span></button></li>${pauseItem(s)}`
+          <span class="muted">${esc([plural(pls.length, 'Liegeplatz', 'Liegeplätze'), mats, time, windowText(s), s.handedFrom ? `vom Büro dazu (vorher ${s.handedFrom.driverName || 'andere Tour'})` : ''].filter(Boolean).join(' · '))}</span></span></button></li>${pauseItem(s)}`
     })
     .join('')
   return `<div class="mwf-back"><button class="btn ghost" data-action="mwf-back">${ICON.left} Alle Touren</button></div>
     <div class="section-head"><div><h2>Tour ${esc(dayText(tour.date).replace(/^(Heute|Morgen|Gestern)/, (w) => w.toLowerCase()))}</h2><p>${tourPill(tour)} ${esc(tour.driverName || 'kein Fahrer')}${tour.vehicleId ? ` · Fahrzeug ${esc(tour.vehicleId)}` : ''}${tour.startedAt ? ` · gestartet ${esc(localTime(tour.startedAt))}` : ''}${tour.finishedAt ? ` · fertig ${esc(localTime(tour.finishedAt))}` : ''}</p></div></div>
     ${syncBanner()}
     ${past ? `<p class="mwf-warn">Diese Tour vom ${esc(formatDate(tour.date))} ist noch offen. Bitte fertig machen oder dem Büro Bescheid geben.</p>` : ''}
+    ${(tour.handovers || []).length ? `<p class="note mwf-handover">Vom Büro an andere Fahrer gegeben: ${tour.handovers.map((h) => `${esc(h.label)} → ${esc(h.toDriver || 'andere Tour')} (${esc(localTime(h.at))} Uhr)`).join(' · ')}</p>` : ''}
     <div class="impact-stats mwf-stats">${tile('Stopps gesamt', p.stops)}${tile('erledigt', p.done, p.done ? 'ok' : '')}${tile('offen', p.open)}</div>
     ${go.length ? `<div class="mwf-go">${go.join('')}</div>` : p.finished ? '<p class="mwf-ok">Alle Stopps sind erledigt.</p>' : ''}
     <section class="mwf-block"><h3>Mattenbedarf je Größe</h3>

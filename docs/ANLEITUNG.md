@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 444 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 445 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
-- [Objekte & Kunden](#objekte-kunden) (115)
+- [Objekte & Kunden](#objekte-kunden) (116)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (83)
 - [Verwaltung](#verwaltung) (76)
@@ -2700,6 +2700,23 @@ Der Betriebshof ist Start und Ziel jeder Tour. Er braucht Koordinaten, damit die
 3. Arbeitszeit von–bis eintragen und speichern.
 
 > Tipp: Koordinaten lassen sich auch von Hand eintragen, z. B. aus Google Maps (Rechtsklick auf den Ort).
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Umplanen am Tag (Fahrer krank, zu viel)
+
+*In der App: Matten-Tourenplanung*
+
+In der Tourenplanung hat jeder Stopp einer freigegebenen oder laufenden Tour, an dem der Fahrer noch nichts erfasst hat, den Knopf „Umplanen“. Damit gibst du ihn (oder den ganzen Rest der Tour) an eine andere Tour desselben Tages oder an eine neue Tour für einen freien Fahrer.
+
+1. „Matten-Tourenplanung“, den Tag wählen.
+2. Am Stopp „Umplanen“ klicken.
+3. Stopps ankreuzen (oder „Alle offenen Stopps“) und wählen, wer übernimmt.
+4. „Umplanen“: die andere Tour bekommt die Stopps, beim ersten Fahrer sind sie weg.
+
+> Tipp: Der erste Fahrer sieht am Handy „Vom Büro an andere Fahrer gegeben“.
+> Tipp: Hat er ohne Netz am Stopp schon gearbeitet, kommt der Stopp zurück; dann steht an beiden Touren eine Warnung.
+> Tipp: Eine neue Tour ist gleich freigegeben.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 

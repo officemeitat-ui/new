@@ -2241,6 +2241,18 @@ export const TOPICS = [
     roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
   },
   {
+    id: 'mw-umplanen',
+    section: 'objekte',
+    view: 'mw-planung',
+    title: 'Umplanen am Tag (Fahrer krank, zu viel)',
+    q: ['umplanen', 'stopp anderer fahrer', 'fahrer krank tour', 'tour umverteilen', 'stopp abgeben', 'laufende tour ändern', 'rest der tour', 'tour übergeben'],
+    answer: 'In der Tourenplanung hat jeder Stopp einer freigegebenen oder laufenden Tour, an dem der Fahrer noch nichts erfasst hat, den Knopf „Umplanen“. Damit gibst du ihn (oder den ganzen Rest der Tour) an eine andere Tour desselben Tages oder an eine neue Tour für einen freien Fahrer.',
+    steps: ['„Matten-Tourenplanung“, den Tag wählen.', 'Am Stopp „Umplanen“ klicken.', 'Stopps ankreuzen (oder „Alle offenen Stopps“) und wählen, wer übernimmt.', '„Umplanen“: die andere Tour bekommt die Stopps, beim ersten Fahrer sind sie weg.'],
+    tips: ['Der erste Fahrer sieht am Handy „Vom Büro an andere Fahrer gegeben“.', 'Hat er ohne Netz am Stopp schon gearbeitet, kommt der Stopp zurück; dann steht an beiden Touren eine Warnung.', 'Eine neue Tour ist gleich freigegeben.'],
+    related: ['mw-touren-planen', 'mw-tour-freigeben'],
+    roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
+  },
+  {
     id: 'mw-fahrerpause',
     section: 'objekte',
     view: 'mw-planung',
