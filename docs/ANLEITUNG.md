@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 441 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 442 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
 - [Objekte & Kunden](#objekte-kunden) (113)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
-- [Finanzen](#finanzen) (82)
+- [Finanzen](#finanzen) (83)
 - [Verwaltung](#verwaltung) (76)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
@@ -4462,6 +4462,23 @@ An die Lohnverrechnung geht gesammelt eine E-Mail mit „wer bekommt wie viel“
 
 > Tipp: Überstunden kommen nur in die Datei, wenn sie ausbezahlt werden.
 > Tipp: Den ersten Monat parallel zur bisherigen Erfassung prüfen.
+> Tipp: Raten eines Lohnvorschusses stehen als „Rückzahlung Vorschuss“ in Euro in der Datei.
+
+### Lohnvorschuss mit Raten
+
+*In der App: Überstunden & Auszahlung*
+
+„Vorschüsse“ hält fest, wer wann wie viel bekommen hat und wie es zurückgezahlt wird: erste Rate (auch höher), dann gleiche Raten je Monat. Die Vereinbarung kommt als PDF zum Unterschreiben. Die Raten stehen im Export fürs Lohnprogramm, beim Austritt zeigt die Checkliste den offenen Rest.
+
+1. „Überstunden & Auszahlung“ → „Export ▾“ → „Vorschüsse“.
+2. „Neuer Vorschuss“: Person, Tag der Auszahlung, Betrag, erster Monat und Raten, dann „Raten berechnen“.
+3. Raten bei Bedarf einzeln ändern; die Summe muss den Betrag ergeben.
+4. „Speichern und PDF“, ausdrucken und von beiden unterschreiben lassen.
+5. Im „Export Lohnprogramm“ einmal die Lohnart für „Rückzahlung Vorschuss“ eintragen (Nettoabzug).
+
+> Tipp: Das Bankkonto steht nur im PDF und wird nicht gespeichert.
+> Tipp: Die Raten so wählen, dass der Person das Existenzminimum bleibt.
+> Tipp: Ist alles zurückgezahlt oder bei der Endabrechnung abgezogen: „erledigt“.
 
 ### Mehrarbeit, Überstunden und Durchrechnung
 

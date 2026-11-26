@@ -7,7 +7,7 @@
 //   plaene/2026/2026-10-26.json       Einteilungen einer Woche + Änderungsprotokoll (mit Stempelungen und
 //                                     Checklisten vom Handy; Fotos der Checklisten unter plaene/checklisten/<Jahr>/)
 //   personal/abwesenheiten.json       Urlaub, Krankenstand, … (Gesundheitsdaten)
-//   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse
+//   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse, Lohnvorschüsse
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
 //   fahrzeuge/fahrtenbuch/2026.json   Fahrtenbuch je Fahrzeug, eine Datei je Jahr (YEAR_DOCS, erst bei Bedarf geladen)
 //   reklamationen/reklamationen.json  Reklamationen je Objekt
@@ -453,7 +453,7 @@ export function splitData(data, weeks, years = []) {
     [DOC.absences]: { absences: data.absences || [] },
     [DOC.absent]: { absent: absentList(data) },
     // pay immer schreiben (auch leer): ein gelöschter Lohn muss bei anderen Geräten ankommen
-    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), pay },
+    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), ...(data.advances?.length ? { advances: data.advances } : {}), pay },
   }
   for (const [key, m] of Object.entries(MODULE_DOCS)) docs[m.path] = data[key] ?? m.empty()
   for (const [key, m] of Object.entries(YEAR_DOCS)) {
@@ -512,6 +512,9 @@ export function applyDoc(data, path, doc, weekEmpty = false) {
     // Export für die Lohnverrechnung: Lohnarten und Dateiformat
     if (doc.export) data.payrollExport = doc.export
     else delete data.payrollExport
+    // Lohnvorschüsse mit Raten (core/vorschuss.js)
+    if (doc.advances) data.advances = doc.advances
+    else delete data.advances
     // mit pay (auch leer) gilt nur, was dort steht; ältere Dateien ohne pay lassen Löhne aus den Stammdaten stehen
     if (doc.pay) {
       const known = new Set((data.employees || []).map((e) => e.id))

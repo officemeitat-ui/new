@@ -5,7 +5,7 @@
 //
 // Quellen der Werte: Überstunden & Auszahlung (payMonth: Normalstunden, Mehrarbeit, Überstunden je
 // Tageszeit, Zuschlagsstunden) und die Monatsauswertung (monthReport: Urlaub, Krankenstand, Feiertag,
-// Fahrzeit). Mengen in Stunden (2 Nachkommastellen) bzw. Tagen.
+// Fahrzeit). Mengen in Stunden (2 Nachkommastellen) bzw. Tagen; Rückzahlung eines Vorschusses in Euro (report: advance).
 
 import { lastOfMonth } from './dates.js'
 
@@ -44,6 +44,8 @@ export const WAGE_KEYS = [
   ['krankTage', 'Krankenstand (Arbeitstage)', 'Tage', (r, m) => m?.sickDays || 0],
   ['krank', 'Krankenstand angerechnet', 'h', (r, m) => h(m?.sickCredit)],
   ['fahrzeit', 'Fahrzeit', 'h', (r, m) => h(m?.travel)],
+  // Rückzahlung eines Lohnvorschusses (Rate des Monats, core/vorschuss.js); im Lohnprogramm als Nettoabzug anlegen
+  ['vorschuss', 'Rückzahlung Vorschuss (Abzug in Euro)', '€', (r, m) => m?.advance || 0],
 ]
 
 export const COLUMNS = {

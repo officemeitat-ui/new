@@ -13,6 +13,7 @@ import { addDays, formatDate, formatHours, mondayOf, todayISO } from '../../core
 import { daysText, jubilees } from '../../core/jubilaeum.js'
 import { mergeRules } from '../../core/rules.js'
 import { timeAccount, vacationSummary, vacationText } from '../../core/reports.js'
+import { openAtExit } from '../../core/vorschuss.js'
 import { LANGUAGES, langLabel, langOf, linkMessage } from '../../core/sprachen.js'
 import { newCode, personalLink, sha256Hex } from '../../core/staffplan.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, seesAbsenceReasons, seesAccount, toast, visibleViews } from '../context.js'
@@ -151,14 +152,16 @@ function taskPanel(t, l, ctx, ed) {
   }
   if (t.type === 'zeitkonto') {
     const parts = []
+    const adv = seesAccount() && l.kind === 'austritt' ? openAtExit(app.data.advances || [], emp.id, l.date) : null
     if (seesAccount()) parts.push(`Zeitkonto (veröffentlichte Wochen bis ${esc(short(l.date))}): <strong>${timeText(timeAccount(emp, app.data.published || {}, mondayOf(l.date), app.data.payroll || {}))}</strong>`)
     else parts.push('Zeitkonto: sieht die Lohnverrechnung.')
+    if (adv?.total) parts.push(`Offener Lohnvorschuss (Raten nach dem Austrittsmonat): <strong>${esc(euro(adv.total))}</strong>, laut Vereinbarung bei der Endabrechnung abziehen`)
     if (seesAbsenceReasons()) {
       const v = vacationSummary(emp, app.data.absences || [], Number(l.date.slice(0, 4)), app.data.extraFreeDays)
       parts.push(`Urlaub ${esc(l.date.slice(0, 4))}: ${esc(vacationText(v))}, <strong>Rest ${String(v.rest).replace('.', ',')} Tage</strong> (ganzjährig, vor Aliquotierung)`)
     }
     return `<p>${parts.join('<br>')}</p><p class="muted">Nur Anzeige: Resturlaub (Ersatzleistung), Zeitguthaben und Überstunden rechnet die Lohnverrechnung ab; die App zahlt nichts aus.</p>
-      <div class="actions">${sees('auswertung') ? btn('bew-overtime', 'Überstunden &amp; Auszahlung', { month: l.date.slice(0, 7) }) : ''}${ed ? btn('bew-payroll-mail', `${ICON.send} An die Lohnverrechnung`, { list: l.id, task: t.id }) : ''}</div>`
+      <div class="actions">${sees('auswertung') ? btn('bew-overtime', 'Überstunden &amp; Auszahlung', { month: l.date.slice(0, 7) }) : ''}${adv?.total && sees('auswertung') ? btn('vs-open', 'Vorschüsse') : ''}${ed ? btn('bew-payroll-mail', `${ICON.send} An die Lohnverrechnung`, { list: l.id, task: t.id }) : ''}</div>`
   }
   if (t.type === 'unterweisung') {
     const r = trainingCheck(ctx.trainings, emp, ctx.today)
@@ -384,7 +387,10 @@ function payrollMail(l, t) {
   const { wages } = mergeRules(app.data.rules)
   const wage = emp.hourlyWage ? `Stundenlohn: ${euro(emp.hourlyWage)}` : emp.wageGroup ? `Lohngruppe ${emp.wageGroup} (KV ${euro(wages[emp.wageGroup] || 0)})` : ''
   const firma = app.config.brand?.name || ''
-  const text = payrollText(emp, { kind: l.kind, date: day(l.date), firma, absender: user(), wage: seesAccount() || !app.access ? wage : '' })
+  const lohn = seesAccount() || !app.access
+  const adv = lohn && l.kind === 'austritt' ? openAtExit(app.data.advances || [], emp.id, l.date).total : 0
+  const advText = adv ? `Offener Lohnvorschuss: ${euro(adv)} (laut Vereinbarung bei der Endabrechnung abziehen)` : ''
+  const text = payrollText(emp, { kind: l.kind, date: day(l.date), firma, absender: user(), wage: lohn ? [wage, advText].filter(Boolean).join('\n') : '' })
   openCompose({
     to: doc().settings.payrollEmail || '',
     subject: `${KIND_TEXT[l.kind]} ${emp.name} am ${day(l.date)}`,

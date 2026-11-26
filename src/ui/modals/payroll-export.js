@@ -5,6 +5,7 @@
 import { MONTH_LONG } from '../../core/dates.js'
 import { COLUMNS, EXPORT_DEFAULTS, exportFileName, exportLines, exportProblems, exportText, keyTotals, WAGE_KEYS } from '../../core/payroll-export.js'
 import { monthReport } from '../../core/reports.js'
+import { deductionsIn } from '../../core/vorschuss.js'
 import { app, canEdit, openModal, persist, registerActions, registerModal, renderModal, toast } from '../context.js'
 import { checked, download, esc, ICON, modalFrame, options, val } from '../shared.js'
 import { payroll } from '../views/overtime.js'
@@ -13,7 +14,8 @@ const settings = () => ({ ...EXPORT_DEFAULTS, ...(app.data.payrollExport || {}),
 
 function data(month) {
   const p = payroll(month)
-  const report = monthReport(p.range.ctx, month, p.range.instances, p.range.state)
+  const ded = deductionsIn(app.data.advances || [], month)
+  const report = monthReport(p.range.ctx, month, p.range.instances, p.range.state).map((m) => (ded.has(m.employee.id) ? { ...m, advance: ded.get(m.employee.id) } : m))
   return { otRows: p.rows, report, missing: p.missing }
 }
 

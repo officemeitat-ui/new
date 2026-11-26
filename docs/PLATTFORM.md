@@ -298,13 +298,23 @@ Unter *Auswertung → Kalkulation* (nur Vollzugriff), gespeichert in `kalkulatio
 
 Unter *Überstunden & Auszahlung* → **„Export Lohnprogramm“** (Rolle Lohnverrechnung oder Vollzugriff): eine Textdatei mit Bewegungsdaten je Person und Lohnart für den Monat, zum Einlesen in BMD, RZL oder ein anderes Lohnprogramm.
 
-- **Lohnarten:** Je Kennzahl die Lohnart-Nummer aus dem eigenen Lohnprogramm eintragen (die Nummern legt jede Lohnverrechnung selbst fest). Kennzahlen: Normalstunden, Mehrarbeit ausbezahlt, Überstunden je Tag/Nacht/Sonntag/Sonntagnacht/Feiertag, 11./12. Stunde, nur Überstundenzuschlag (bei „Zeitausgleich 1:1 + Zuschlag in Geld“), Nacht-, Sonntags- und Feiertagsstunden für die Zuschläge, Feiertag angerechnet, Urlaub und Krankenstand (Tage und angerechnete Stunden), Fahrzeit. Leer = nicht exportieren. Der Dialog zeigt je Kennzahl die Summe im Monat.
+- **Lohnarten:** Je Kennzahl die Lohnart-Nummer aus dem eigenen Lohnprogramm eintragen (die Nummern legt jede Lohnverrechnung selbst fest). Kennzahlen: Normalstunden, Mehrarbeit ausbezahlt, Überstunden je Tag/Nacht/Sonntag/Sonntagnacht/Feiertag, 11./12. Stunde, nur Überstundenzuschlag (bei „Zeitausgleich 1:1 + Zuschlag in Geld“), Nacht-, Sonntags- und Feiertagsstunden für die Zuschläge, Feiertag angerechnet, Urlaub und Krankenstand (Tage und angerechnete Stunden), Fahrzeit, Rückzahlung eines Lohnvorschusses (Euro, als Nettoabzug anlegen). Leer = nicht exportieren. Der Dialog zeigt je Kennzahl die Summe im Monat.
 - **Überstunden** kommen nur in die Datei, wenn sie ausbezahlt werden; bei Zeitausgleich 1:1,5 bleiben sie im Zeitkonto.
 - **Dateiformat:** Spalten und Reihenfolge (Personalnummer, Name, Lohnart, Menge, Einheit, Satz, Betrag, Von, Bis, Monat, Text), Kopfzeile, Trennzeichen (Strichpunkt, Komma, Tabulator), Dezimalzeichen, Datum (TT.MM.JJJJ, JJJJ-MM-TT, MM/JJJJ). Vorgabe: `Personalnummer;Lohnart;Menge;Satz;Von;Bis;Text`, UTF-8, Zeilenende wie unter Windows. Im Lohnprogramm einmal ein Importformat mit genau diesen Spalten anlegen (BMD: Bewegungsdaten-Import, RZL: Import der variablen Bezüge) oder hier die Spalten an eine vorhandene Vorlage anpassen.
 - **Hinweise** vor dem Herunterladen: Monat noch nicht abgeschlossen, fehlende Wochen, Personen ohne Personalnummer, Werte ohne Lohnart. Vorschau der ersten Zeilen.
 - Gespeichert werden Lohnarten und Format im Zeitkonto (`lohn/zeitkonto.json`), also nur für Lohnverrechnung und Vollzugriff.
 
 **Einmal mit der Lohnverrechnung abstimmen:** Lohnart-Nummern, ob der Stundenlohn als Satz mitgehen soll oder das Lohnprogramm ihn selbst kennt, und ob Urlaub und Krankenstand in Tagen oder Stunden gebucht werden. Den ersten Monat parallel zur bisherigen Erfassung prüfen.
+
+## Lohnvorschuss mit Raten
+
+Unter *Überstunden & Auszahlung* → „Export ▾“ → **„Vorschüsse“** (wer Löhne sehen darf: Lohnverrechnung, Vollzugriff): je Person Tag der Auszahlung, Betrag und Rückzahlung in Raten. „Raten berechnen“ teilt den Betrag auf (erste Rate auf Wunsch anders, z. B. 1000 €, dann je Monat 500 €, die letzte ist der Rest); jede Rate ist danach einzeln änderbar, die Summe muss den Betrag ergeben.
+
+- **Vereinbarung als PDF:** Firma und Person, Betrag, Raten je Monatsabrechnung, Abzug des Rests bei der Endabrechnung, Ort und Datum, zwei Unterschriften. Das Bankkonto steht nur im PDF und wird nicht gespeichert.
+- **Lohn-Export:** Die Rate des Monats steht als Kennzahl „Rückzahlung Vorschuss“ (Euro) im Export für das Lohnprogramm; mehrere Vorschüsse einer Person werden zusammengezählt.
+- **Austritt:** Die Austritts-Checkliste (Aufgabe Zeitkonto) und die E-Mail an die Lohnverrechnung nennen den offenen Rest (Raten nach dem Austrittsmonat).
+- **Erledigt:** zurückgezahlt bzw. bei der Endabrechnung abgezogen; danach keine Raten mehr im Export.
+- Gespeichert in `lohn/zeitkonto.json` (`advances`). Rechtliches: docs/RECHTSPRUEFUNG.md, Punkt 61.
 
 ## Fahrzeiten aus Adressen
 
