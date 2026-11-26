@@ -87,6 +87,8 @@ export function webTourPayload(tour, identity) {
     lat: hasCoords(s) ? Number(s.lat) : null,
     lon: hasCoords(s) ? Number(s.lon) : null,
     ankunft: text(s.times?.arrival),
+    // Ruhepause nach diesem Stopp (Tourvorschlag, § 11 AZG)
+    ...(s.times?.pause ? { pause: { von: text(s.times.pause.from), bis: text(s.times.pause.to) } } : {}),
     fenster: { von: text(s.window?.from), bis: text(s.window?.to), hinweis: text(s.windowNote) },
     status: s.status || 'geplant',
     liegeplaetze: placementsOf(s).map((p) => ({

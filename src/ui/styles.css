@@ -2717,6 +2717,7 @@ th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
 .mw-tp-no { display: inline-flex; align-items: center; justify-content: center; width: 1.8rem; height: 1.8rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 0.9rem; }
 .mw-tp-time strong { display: block; font-size: 1.05rem; }
 .mw-tp-time small { display: block; font-size: 0.8rem; color: var(--muted); }
+.mw-tp-time small.mw-tp-pause { color: var(--text); font-weight: 600; }
 .mw-tp-where { min-width: 0; overflow-wrap: break-word; }
 .mw-tp-win { font-size: 0.85rem; }
 .mw-tp-items { margin: 0; padding-left: 1.1rem; min-width: 0; overflow-wrap: break-word; font-size: 0.92rem; }
@@ -3042,6 +3043,7 @@ a.btn { text-decoration: none; }
 .mwf-stop-item { background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); min-width: 0; }
 .mwf-stop-item.done { background: var(--surface-2); box-shadow: none; }
 .mwf-stop-item.next { border-left: 4px solid var(--accent); }
+.mwf-pause-item { padding: 6px 12px; border: 1px dashed var(--card-border); border-radius: var(--radius-card); color: var(--text); font-weight: 600; font-size: 0.9rem; }
 .mwf-stop-btn { display: flex; gap: 12px; align-items: flex-start; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
 .mwf-no { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--fg); font-weight: 700; }
 .mwf-stop-text { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }

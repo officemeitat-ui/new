@@ -46,6 +46,8 @@ import { DETOUR, hasCoords, haversineKm, nominatimUrl, parseCoords, parseNominat
 export const ROUTING_DEFAULTS = Object.freeze({ speedKmh: 35, baseMin: 5, detour: DETOUR, roundMin: 1, balance: 0.25, maxPasses: 30 })
 /** Arbeitszeit eines Fahrers ohne Angabe. */
 export const DEFAULT_SHIFT = Object.freeze({ start: '07:00', end: '15:30' })
+/** Ruhepause nach § 11 AZG: 30 Minuten, spätestens nach 6 Stunden Arbeit (pauseSettings). */
+export const PAUSE_DEFAULTS = Object.freeze({ minutes: 30, after: 360 })
 
 export const REASONS = {
   koordinaten: 'keine Koordinaten',
@@ -91,6 +93,18 @@ export function travelSettings(settings = {}) {
     detour: Math.max(1, num(s.detour, ROUTING_DEFAULTS.detour)),
     roundMin: Math.max(0, num(s.roundMin, ROUTING_DEFAULTS.roundMin)),
   }
+}
+
+/**
+ * Ruhepause der Fahrer (§ 11 Abs. 1 AZG: dauert die Arbeit am Tag mehr als sechs Stunden, ist sie durch eine Pause von
+ * mindestens einer halben Stunde zu unterbrechen). settings.pauseMinutes (Vorgabe 30, 0 = keine Pause einplanen) und
+ * settings.pauseAfter (Minuten Arbeit, nach denen die Pause spätestens beginnt; Vorgabe 360 = 6 Stunden).
+ */
+export function pauseSettings(settings = {}) {
+  const s = settings || {}
+  const minutes = Math.max(0, Math.min(120, Math.round(num(s.pauseMinutes, PAUSE_DEFAULTS.minutes))))
+  const after = Math.max(60, Math.min(600, Math.round(num(s.pauseAfter, PAUSE_DEFAULTS.after))))
+  return { minutes, after }
 }
 
 /** Eine Fahrt: [Minuten, km Straße]; unter 100 m Luftlinie 0 (wie estimateTravel). */
@@ -141,6 +155,20 @@ const fmt = (min) => (Number.isFinite(min) ? formatTime(Math.round(min)) : '')
  * matrix: über [depot, ...stops] (sonst Luftlinie mit settings).
  */
 export function scheduleRoute({ depot, stops = [], driver = {}, settings = {}, matrix = null } = {}) {
+  const first = timeline({ depot, stops, driver, settings, matrix })
+  // Ruhepause (§ 11 AZG): dauert die Tour länger als pauseAfter, nach dem letzten Stopp, der bis dahin fertig ist
+  // (ist schon der erste später fertig: nach dem ersten); reicht die Zeit nur für die Rückfahrt nicht, vor der Rückfahrt
+  const p = pauseSettings(settings)
+  if (!p.minutes || !stops.length || first.length <= p.after) return first.result
+  let at = 0
+  first.departures.forEach((d, k) => {
+    if (d - first.begin <= p.after) at = k
+  })
+  return timeline({ depot, stops, driver, settings, matrix, pause: { at, minutes: p.minutes } }).result
+}
+
+/** Zeitplan einer festen Reihenfolge, optional mit Pause nach dem Stopp an Stelle pause.at: { result, departures, begin, length }. */
+function timeline({ depot, stops = [], driver = {}, settings = {}, matrix = null, pause = null }) {
   const points = [depot || {}, ...stops]
   const M = validMatrix(matrix, points.length) ? matrix : airMatrix(points, settings)
   const start = minutesOf(driver.start, toMinutes(DEFAULT_SHIFT.start))
@@ -155,6 +183,8 @@ export function scheduleRoute({ depot, stops = [], driver = {}, settings = {}, m
   let work = 0
   let wait = 0
   let load = 0
+  let pauseInfo = null
+  const departures = []
   stops.forEach((s, k) => {
     const node = k + 1
     let travel = M.minutes[prev]?.[node]
@@ -170,13 +200,20 @@ export function scheduleRoute({ depot, stops = [], driver = {}, settings = {}, m
     const begin = Math.max(arrival, e)
     const departure = begin + minutes
     if (departure > to || e >= to) problems.push({ code: 'zeitfenster', id: s.id, text: e >= to ? 'Zeitfenster der Liegeplätze überschneiden sich nicht' : `fertig ${fmt(departure)}, Zeitfenster bis ${fmt(to)}` })
-    out.push({ id: s.id, arrival: fmt(arrival), start: fmt(begin), departure: fmt(departure), wait: Math.round(begin - arrival), travel: Math.round(travel), km: round1(km || 0) })
+    const row = { id: s.id, arrival: fmt(arrival), start: fmt(begin), departure: fmt(departure), wait: Math.round(begin - arrival), travel: Math.round(travel), km: round1(km || 0) }
+    departures.push(departure)
+    t = departure
+    if (pause && pause.at === k) {
+      row.pause = { from: fmt(t), to: fmt(t + pause.minutes), minutes: pause.minutes }
+      pauseInfo = { stopId: s.id, ...row.pause }
+      t += pause.minutes
+    }
+    out.push(row)
     travelSum += travel
     kmSum += km || 0
     work += minutes
     wait += begin - arrival
     load += Math.max(0, num(s.demand, 0))
-    t = departure
   })
   let back = { travel: 0, km: 0 }
   if (stops.length) {
@@ -189,7 +226,9 @@ export function scheduleRoute({ depot, stops = [], driver = {}, settings = {}, m
   }
   if (t > end) problems.push({ code: 'arbeitszeit', text: `zurück ${fmt(t)}, Arbeitszeit bis ${fmt(end)}` })
   if (load > cap) problems.push({ code: 'kapazitaet', text: `${load} Matten, Platz für ${cap}` })
-  return { stops: out, start: fmt(start), end: fmt(stops.length ? t : start), minutes: Math.round(travelSum), km: round1(kmSum), work, wait: Math.round(wait), load, back, problems }
+  const result = { stops: out, start: fmt(start), end: fmt(stops.length ? t : start), minutes: Math.round(travelSum), km: round1(kmSum), work, wait: Math.round(wait), load, back, problems }
+  if (pauseInfo) result.pause = pauseInfo
+  return { result, departures, begin: start, length: stops.length ? t - start : 0 }
 }
 
 // ---------------------------------------------------------------- Optimierung (eingebauter Anbieter)
@@ -547,35 +586,56 @@ function reasonFor(ctx, routes, u) {
 }
 
 /** Ergebnis einer Tour: Zeiten je Stopp wie scheduleRoute. */
-function describe(ctx, r, inStops) {
+function describe(ctx, r, inStops, pause = { minutes: 0, after: Infinity }) {
   const { T, K, S, n } = ctx
-  let t = r.drv.start
-  let prev = 0
-  let travelSum = 0
-  let kmSum = 0
-  let work = 0
-  let wait = 0
-  const stops = r.seq.map((i) => {
-    const st = S[i]
-    const travel = T[prev * n + i]
-    const km = K[prev * n + i]
-    const arrival = t + travel
-    const begin = Math.max(arrival, st.e)
-    t = begin + st.s
-    travelSum += travel
-    kmSum += km
-    work += st.s
-    wait += begin - arrival
-    prev = i
-    return { id: inStops[i - 1].id, arrival: fmt(arrival), start: fmt(begin), departure: fmt(t), wait: Math.round(begin - arrival), travel: Math.round(travel), km: round1(km) }
-  })
-  const back = r.seq.length ? { travel: Math.round(T[prev * n]), km: round1(K[prev * n]) } : { travel: 0, km: 0 }
-  if (r.seq.length) {
-    travelSum += T[prev * n]
-    kmSum += K[prev * n]
-    t += T[prev * n]
+  const run = (pauseAt) => {
+    let t = r.drv.start
+    let prev = 0
+    let travelSum = 0
+    let kmSum = 0
+    let work = 0
+    let wait = 0
+    let info = null
+    const departures = []
+    const stops = r.seq.map((i, k) => {
+      const st = S[i]
+      const travel = T[prev * n + i]
+      const km = K[prev * n + i]
+      const arrival = t + travel
+      const begin = Math.max(arrival, st.e)
+      t = begin + st.s
+      travelSum += travel
+      kmSum += km
+      work += st.s
+      wait += begin - arrival
+      prev = i
+      departures.push(t)
+      const row = { id: inStops[i - 1].id, arrival: fmt(arrival), start: fmt(begin), departure: fmt(t), wait: Math.round(begin - arrival), travel: Math.round(travel), km: round1(km) }
+      // Ruhepause nach diesem Stopp (wie scheduleRoute)
+      if (k === pauseAt) {
+        row.pause = { from: fmt(t), to: fmt(t + pause.minutes), minutes: pause.minutes }
+        info = { stopId: row.id, ...row.pause }
+        t += pause.minutes
+      }
+      return row
+    })
+    const back = r.seq.length ? { travel: Math.round(T[prev * n]), km: round1(K[prev * n]) } : { travel: 0, km: 0 }
+    if (r.seq.length) {
+      travelSum += T[prev * n]
+      kmSum += K[prev * n]
+      t += T[prev * n]
+    }
+    const out = { driverId: r.drv.id, stops, start: fmt(r.drv.start), end: fmt(r.seq.length ? t : r.drv.start), minutes: Math.round(travelSum), km: round1(kmSum), work, wait: Math.round(wait), load: r.load, back }
+    if (info) out.pause = info
+    return { out, t, departures }
   }
-  return { driverId: r.drv.id, stops, start: fmt(r.drv.start), end: fmt(r.seq.length ? t : r.drv.start), minutes: Math.round(travelSum), km: round1(kmSum), work, wait: Math.round(wait), load: r.load, back }
+  const first = run(-1)
+  if (!pause.minutes || !r.seq.length || first.t - r.drv.start <= pause.after) return first.out
+  let at = 0
+  first.departures.forEach((d, k) => {
+    if (d - r.drv.start <= pause.after) at = k
+  })
+  return run(at).out
 }
 
 /**
@@ -587,19 +647,22 @@ function describe(ctx, r, inStops) {
  * (3) Einfügen mit Bedauern (Regret-2) an der jeweils billigsten machbaren Stelle aller Touren, mit Prüfung der
  * Ankunftszeiten gegen Zeitfenster und Arbeitsende; (4) Verbesserung: 2-opt und Or-opt innerhalb jeder Tour, Verlegen
  * einzelner Stopps zwischen Touren (Ziel: Summe der Fahrzeiten + balance × längste Tour), danach Übriggebliebene erneut
- * einfügen – bis nichts mehr besser wird (höchstens maxPasses Runden). Pausen werden nicht eingeplant.
+ * einfügen – bis nichts mehr besser wird (höchstens maxPasses Runden). Ruhepause: Bei einer Schicht über pauseAfter
+ * plant der Optimierer mit einer um die Pause kürzeren Schicht; die Zeiten mit Pause rechnet describe wie scheduleRoute.
  */
 export function planRoutes(problem = {}) {
   const cfg = { ...ROUTING_DEFAULTS, ...(problem.settings || {}) }
   const balance = Math.max(0, num(cfg.balance, ROUTING_DEFAULTS.balance))
   const inStops = problem.stops || []
   const ctx = context(problem, travelSettings(cfg))
-  const drivers = (problem.drivers || []).map((d) => ({
-    id: d.id,
-    start: minutesOf(d.start, toMinutes(DEFAULT_SHIFT.start)),
-    end: minutesOf(d.end, toMinutes(DEFAULT_SHIFT.end)),
-    cap: num(d.capacity, 0) > 0 ? Number(d.capacity) : Infinity,
-  }))
+  // Ruhepause (pauseSettings): bei einer Arbeitszeit über pauseAfter plant der Optimierer mit einer um die Pause kürzeren
+  // Schicht; wo die Pause liegt, rechnet describe wie scheduleRoute
+  const pause = pauseSettings(cfg)
+  const drivers = (problem.drivers || []).map((d) => {
+    const start = minutesOf(d.start, toMinutes(DEFAULT_SHIFT.start))
+    const end = minutesOf(d.end, toMinutes(DEFAULT_SHIFT.end))
+    return { id: d.id, start, end: pause.minutes && end - start > pause.after ? end - pause.minutes : end, cap: num(d.capacity, 0) > 0 ? Number(d.capacity) : Infinity }
+  })
   const routes = drivers.filter((d) => d.start < d.end).map(newRoute)
   const unassigned = new Map()
   const pending = new Set()
@@ -631,7 +694,7 @@ export function planRoutes(problem = {}) {
     }
   }
   for (const u of pending) unassigned.set(u, reasonFor(ctx, routes, u))
-  const out = routes.map((r) => describe(ctx, r, inStops))
+  const out = routes.map((r) => describe(ctx, r, inStops, pause))
   return {
     provider: 'luftlinie',
     routes: out,

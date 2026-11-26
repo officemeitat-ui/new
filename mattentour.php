@@ -282,6 +282,7 @@ function tour_bereinigen(array $d): ?array
             'lat' => koordinate($s['lat'] ?? null, 90),
             'lon' => koordinate($s['lon'] ?? null, 180),
             'ankunft' => $zeit($s['ankunft'] ?? ''),
+            'pause' => is_array($s['pause'] ?? null) && $zeit($s['pause']['von'] ?? '') && $zeit($s['pause']['bis'] ?? '') ? ['von' => $zeit($s['pause']['von']), 'bis' => $zeit($s['pause']['bis'])] : null,
             'fenster' => ['von' => $zeit($fenster['von'] ?? ''), 'bis' => $zeit($fenster['bis'] ?? ''), 'hinweis' => kurz($fenster['hinweis'] ?? '', 120)],
             'status' => in_array($status, STOPP_STATUS, true) ? $status : 'geplant',
             'liegeplaetze' => $lps,
@@ -1141,7 +1142,7 @@ foreach ($stopps as $i => $s) {
             $matten[] = $m['soll'] . ' × ' . $m['bezeichnung'];
         }
     }
-    $zeile = array_filter([count($s['liegeplaetze']) === 1 ? t('mt_liegeplatz_1') : t('mt_liegeplaetze_n', ['n' => (string) count($s['liegeplaetze'])]), implode(' · ', $matten), $s['ankunft'] ? t('mt_ca', ['zeit' => $s['ankunft']]) : '', fenster_text($s)]);
+    $zeile = array_filter([count($s['liegeplaetze']) === 1 ? t('mt_liegeplatz_1') : t('mt_liegeplaetze_n', ['n' => (string) count($s['liegeplaetze'])]), implode(' · ', $matten), $s['ankunft'] ? t('mt_ca', ['zeit' => $s['ankunft']]) : '', fenster_text($s), !empty($s['pause']) ? t('mt_pause', ['von' => $s['pause']['von'], 'bis' => $s['pause']['bis']]) : '']);
     $liste .= '<li class="' . ($st['fertig'] ? 'fertig' : '') . ($next && $next['id'] === $s['id'] ? ' naechster' : '') . '" data-mww-stopp-li="' . $h($s['id']) . '"><a href="' . $h($tourUrl . '&stopp=' . rawurlencode($s['id'])) . '" data-mww-zu="' . $h($s['id']) . '">'
         . '<span class="nr" aria-hidden="true">' . ($i + 1) . '</span><span class="text"><span class="mww-kopf"><b>' . $h(stopp_titel($s)) . '</b> <span data-mww-pill>' . status_pill($st['status']) . '</span></span>'
         . '<span>' . $h(implode(' · ', array_filter([$s['objekt'], $s['adresse']]))) . '</span><span class="leise">' . $h(implode(' · ', $zeile)) . '</span></span></a></li>';
@@ -1174,7 +1175,7 @@ $teile = '';
 foreach ($stopps as $i => $s) {
     $st = $stand['stopps'][$s['id']] ?? ['status' => 'geplant', 'fertig' => false, 'meldung' => null];
     $sid = $s['id'];
-    $kopfzeilen = array_filter([$s['ankunft'] ? t('mt_geplant_ca', ['zeit' => $s['ankunft']]) : '', fenster_text($s)]);
+    $kopfzeilen = array_filter([$s['ankunft'] ? t('mt_geplant_ca', ['zeit' => $s['ankunft']]) : '', fenster_text($s), !empty($s['pause']) ? t('mt_pause', ['von' => $s['pause']['von'], 'bis' => $s['pause']['bis']]) : '']);
     $teil = '<div class="mww-zurueck"><a href="' . $h($tourUrl) . '" data-mww-zu="">' . th('mt_zur_uebersicht') . '</a><span>' . th('mt_stopp_von', ['nr' => (string) ($i + 1), 'alle' => (string) $alle]) . '</span></div>'
         . '<div class="mww-kopf"><h2>' . $h(stopp_titel($s)) . '</h2> <span data-mww-pill>' . status_pill($st['status']) . '</span></div>'
         . '<p>' . ($s['objekt'] ? '<b>' . $h($s['objekt']) . '</b><br>' : '') . $h($s['adresse']) . '</p>'

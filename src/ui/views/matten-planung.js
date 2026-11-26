@@ -57,7 +57,7 @@ import {
   withdrawTour,
 } from '../../core/matten-touren.js'
 import { isWebDriver, tourOnWebspace, webDriverProblem, withWebspace } from '../../core/matten-webspace.js'
-import { ORS_ATTRIBUTION } from '../../core/routing.js'
+import { ORS_ATTRIBUTION, PAUSE_DEFAULTS, pauseSettings } from '../../core/routing.js'
 import { LANGUAGES, langLabel } from '../../core/sprachen.js'
 import { isNetworkError } from '../../storage/offline.js'
 import { app, canEdit, closeModal, confirmStep, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
@@ -282,7 +282,8 @@ const timeText = (s) => {
   const t = s.times || {}
   if (!t.arrival) return '<span class="muted">–</span>'
   const extra = [t.start && t.start !== t.arrival ? `Beginn ${t.start}` : '', t.departure ? `fertig ${t.departure}` : ''].filter(Boolean).join(', ')
-  return `<strong>${esc(t.arrival)}</strong>${extra ? `<small>${esc(extra)}</small>` : ''}`
+  const pause = t.pause ? `<small class="mw-tp-pause">danach Pause ${esc(t.pause.from)}–${esc(t.pause.to)}</small>` : ''
+  return `<strong>${esc(t.arrival)}</strong>${extra ? `<small>${esc(extra)}</small>` : ''}${pause}`
 }
 
 /** Soll-Ist am abgeschlossenen Stopp: „fertig 07:42“ und die Abweichung zur geplanten Abfahrt (core/matten-sollist.js). */
@@ -321,7 +322,7 @@ function tourCard(t, { ed, today, others }) {
   const probs = tourProblems(t)
   const rel = app.ui.mwTpRel?.[t.id] || []
   const links = mapsLinks(t)
-  const facts = [t.vehicleLabel || (t.vehicleId ? vehicleLabel(vehicleOf(t.vehicleId)) || 'Fahrzeug' : 'ohne Fahrzeug'), r.start ? `ab ${r.start}` : '', r.end ? `zurück ${r.end}` : '', `${km(r.km)} km`, `${r.minutes || 0} Min. Fahrt`, `${r.work || 0} Min. Arbeit`, r.wait ? `${r.wait} Min. warten` : '', `${r.load || 0} Matten${r.capacity ? ` (Platz ${r.capacity})` : ''}`, r.shift ? `Arbeitszeit ${r.shift.from}–${r.shift.to}` : ''].filter(Boolean)
+  const facts = [t.vehicleLabel || (t.vehicleId ? vehicleLabel(vehicleOf(t.vehicleId)) || 'Fahrzeug' : 'ohne Fahrzeug'), r.start ? `ab ${r.start}` : '', r.end ? `zurück ${r.end}` : '', `${km(r.km)} km`, `${r.minutes || 0} Min. Fahrt`, `${r.work || 0} Min. Arbeit`, r.wait ? `${r.wait} Min. warten` : '', r.pause ? `${r.pause.minutes} Min. Pause` : '', `${r.load || 0} Matten${r.capacity ? ` (Platz ${r.capacity})` : ''}`, r.shift ? `Arbeitszeit ${r.shift.from}–${r.shift.to}` : ''].filter(Boolean)
   // womit die Zeiten gerechnet sind (route.provider); nach einer Änderung von Hand nur auf Klick neu mit dem gewählten Anbieter
   const cp = chosenProvider()
   const by = r.provider === 'google' || r.provider === 'ors' ? r.provider : ''
@@ -837,13 +838,14 @@ registerModal('mw-tp-new', newModal, { module: MODULE })
 function depotDraft(m) {
   if (!m.draft) {
     const d = settings().depot || {}
-    m.draft = { name: d.name || '', address: d.address || '', coords: coordsText(d), from: settings().workday?.from || '', to: settings().workday?.to || '', split: !!settings().splitByArea }
+    const p = pauseSettings(routing())
+    m.draft = { name: d.name || '', address: d.address || '', coords: coordsText(d), from: settings().workday?.from || '', to: settings().workday?.to || '', split: !!settings().splitByArea, pause: String(p.minutes), pauseAfter: String(p.after / 60).replace('.', ',') }
   }
   return m.draft
 }
 function readDepot() {
   const d = depotDraft(app.ui.modal)
-  if (document.getElementById('mw-tp-d-name')) Object.assign(d, { name: val('mw-tp-d-name'), address: val('mw-tp-d-address'), coords: val('mw-tp-d-coords'), from: val('mw-tp-d-from'), to: val('mw-tp-d-to'), split: checked('mw-tp-d-split') })
+  if (document.getElementById('mw-tp-d-name')) Object.assign(d, { name: val('mw-tp-d-name'), address: val('mw-tp-d-address'), coords: val('mw-tp-d-coords'), from: val('mw-tp-d-from'), to: val('mw-tp-d-to'), split: checked('mw-tp-d-split'), pause: val('mw-tp-d-pause'), pauseAfter: val('mw-tp-d-pause-after') })
   return d
 }
 
@@ -862,8 +864,11 @@ registerModal(
           <label class="field wide"><span>Koordinaten (Breite, Länge)</span><span class="input-btn"><input type="text" id="mw-tp-d-coords" value="${esc(d.coords)}" placeholder="z. B. 47.80950, 13.05500" ${dis}>${ed ? '<button class="btn small" data-action="mw-tp-depot-geo" title="Aus der Adresse suchen (OpenRouteService bzw. Google, wenn gewählt und eingerichtet, sonst OpenStreetMap)">Suchen</button>' : ''}</span><small class="muted">für die Reihenfolge und die Fahrzeiten; „Suchen“ fragt ${chosenProvider() ? `${esc(chosenProvider().short)} (sonst OpenStreetMap)` : 'OpenStreetMap'} nach der Adresse</small></label>
           <label class="field"><span>Arbeitszeit von</span><input type="time" id="mw-tp-d-from" value="${esc(d.from)}" placeholder="07:00" ${dis}></label>
           <label class="field"><span>bis</span><input type="time" id="mw-tp-d-to" value="${esc(d.to)}" placeholder="15:30" ${dis}></label>
+          <label class="field"><span>Ruhepause (Minuten, 0 = keine)</span><input type="number" id="mw-tp-d-pause" min="0" max="120" step="5" inputmode="numeric" value="${esc(d.pause)}" ${dis}></label>
+          <label class="field"><span>spätestens nach (Stunden Arbeit)</span><input type="text" id="mw-tp-d-pause-after" inputmode="decimal" value="${esc(d.pauseAfter)}" ${dis}></label>
           <label class="check wide"><input type="checkbox" id="mw-tp-d-split" ${d.split ? 'checked' : ''} ${dis}><span>Touren nach Gebiet trennen (ein Fahrer fährt ein Gebiet; Fahrer mit Stammgebiet fahren ihres)</span></label>
         </div>
+        <p class="muted">Ruhepause nach § 11 AZG: Dauert die Tour länger als sechs Stunden, plant der Vorschlag eine halbe Stunde Pause ein, nach dem letzten Stopp, der bis dahin fertig ist. Bestehende Touren rechnen sie beim nächsten Ändern bzw. „Fahrzeiten neu rechnen“ ein.</p>
         <p class="muted">Fahrzeiten rechnet der eingebaute Anbieter aus der Luftlinie (Umweg und Zuschlag eingerechnet); echte Fahrzeiten mit OpenRouteService (kostenlos) oder Google unter „Mehr“ → „Routing“.</p>`,
       foot: `<div class="actions"></div><div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<button class="btn primary" data-action="mw-tp-depot-save">Speichern</button>' : ''}</div>`,
     })
@@ -877,7 +882,18 @@ function saveDepot() {
   if (d.coords.trim() && !coords) return toast('Koordinaten als „Breite, Länge“ eintragen, z. B. 47.80950, 13.05500.')
   if (!d.address.trim() && !coords) return toast('Bitte die Adresse oder die Koordinaten des Betriebshofs eintragen.')
   if ((d.from && !d.to) || (!d.from && d.to) || (d.from && d.to && d.to <= d.from)) return toast('Arbeitszeit: von und bis eintragen, bis nach von.')
+  const pauseMin = Number(String(d.pause).replace(',', '.'))
+  const pauseAfter = Number(String(d.pauseAfter).replace(',', '.'))
+  if (!Number.isFinite(pauseMin) || pauseMin < 0 || pauseMin > 120) return toast('Ruhepause: 0 bis 120 Minuten.')
+  if (!Number.isFinite(pauseAfter) || pauseAfter < 1 || pauseAfter > 10) return toast('Pause spätestens nach 1 bis 10 Stunden Arbeit.')
   const s = settings()
+  const rt = { ...(s.routing || {}) }
+  if (Math.round(pauseMin) !== PAUSE_DEFAULTS.minutes) rt.pauseMinutes = Math.round(pauseMin)
+  else delete rt.pauseMinutes
+  if (Math.round(pauseAfter * 60) !== PAUSE_DEFAULTS.after) rt.pauseAfter = Math.round(pauseAfter * 60)
+  else delete rt.pauseAfter
+  if (Object.keys(rt).length) s.routing = rt
+  else delete s.routing
   s.depot = { name: d.name.trim(), address: d.address.trim(), ...(coords ? { lat: coords.lat, lon: coords.lon } : {}) }
   if (d.from && d.to) s.workday = { from: d.from, to: d.to }
   else delete s.workday

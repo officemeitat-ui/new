@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 442 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 443 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
-- [Objekte & Kunden](#objekte-kunden) (113)
+- [Objekte & Kunden](#objekte-kunden) (114)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (83)
 - [Verwaltung](#verwaltung) (76)
@@ -2683,6 +2683,21 @@ Der Betriebshof ist Start und Ziel jeder Tour. Er braucht Koordinaten, damit die
 3. Arbeitszeit von–bis eintragen und speichern.
 
 > Tipp: Koordinaten lassen sich auch von Hand eintragen, z. B. aus Google Maps (Rechtsklick auf den Ort).
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Ruhepause der Fahrer in der Tour
+
+*In der App: Matten-Tourenplanung*
+
+Dauert eine Tour länger als sechs Stunden, plant der Vorschlag eine halbe Stunde Pause ein (§ 11 AZG), nach dem letzten Stopp, der bis dahin fertig ist. Die Stopps danach kommen später; die Pause steht am Stopp, an der Tour und in der Fahreransicht.
+
+1. „Mehr“ → „Betriebshof und Arbeitszeit“.
+2. Ruhepause in Minuten (0 = keine) und „spätestens nach“ in Stunden eintragen, speichern.
+3. Neuer Vorschlag bzw. „Fahrzeiten neu rechnen“ rechnet mit der Pause.
+
+> Tipp: Der Vorschlag plant mit einer um die Pause kürzeren Arbeitszeit, damit die Tour trotzdem rechtzeitig zurück ist.
+> Tipp: Kommt ein Zeitfenster durch die Pause zu spät, steht es als Warnung an der Tour.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 

@@ -306,6 +306,9 @@ registerHomeCard({
   },
 })
 
+/** Ruhepause nach dem Stopp (Tourvorschlag, § 11 AZG): eigene Zeile in der Liste der Stopps. */
+const pauseItem = (s) => (s.times?.pause ? `<li class="mwf-pause-item">Pause ${esc(s.times.pause.from)}–${esc(s.times.pause.to)} Uhr (${esc(s.times.pause.minutes)} Min.)</li>` : '')
+
 function tourView(tour) {
   const p = tourProgress(tour)
   const work = canWork(tour)
@@ -328,7 +331,7 @@ function tourView(tour) {
         <span class="mwf-no" aria-hidden="true">${i + 1}</span>
         <span class="mwf-stop-text"><span class="mwf-card-top"><strong>${esc(stopTitle(s))}</strong> ${stopPill(s)}</span>
           <span>${esc(s.objectName || '')}${s.address ? ` · ${esc(s.address)}` : ''}</span>
-          <span class="muted">${esc([plural(pls.length, 'Liegeplatz', 'Liegeplätze'), mats, time, windowText(s)].filter(Boolean).join(' · '))}</span></span></button></li>`
+          <span class="muted">${esc([plural(pls.length, 'Liegeplatz', 'Liegeplätze'), mats, time, windowText(s)].filter(Boolean).join(' · '))}</span></span></button></li>${pauseItem(s)}`
     })
     .join('')
   return `<div class="mwf-back"><button class="btn ghost" data-action="mwf-back">${ICON.left} Alle Touren</button></div>
@@ -349,7 +352,7 @@ function stopView(tour, stop) {
   const work = canWork(tour) && !isFinal(stop)
   const pls = placementsOf(stop)
   const info = [stop.objectName ? `<strong>${esc(stop.objectName)}</strong>` : '', stop.address ? esc(stop.address) : ''].filter(Boolean).join('<br>')
-  const when = [stop.times?.arrival ? `geplant ca. ${esc(stop.times.arrival)} Uhr` : '', windowText(stop) ? `Zeitfenster ${esc(windowText(stop))}` : '', stop.windowNote ? esc(stop.windowNote) : ''].filter(Boolean).join(' · ')
+  const when = [stop.times?.arrival ? `geplant ca. ${esc(stop.times.arrival)} Uhr` : '', windowText(stop) ? `Zeitfenster ${esc(windowText(stop))}` : '', stop.windowNote ? esc(stop.windowNote) : '', stop.times?.pause ? `danach Pause ${esc(stop.times.pause.from)}–${esc(stop.times.pause.to)} Uhr` : ''].filter(Boolean).join(' · ')
   const arrive = work && ['geplant', 'unterwegs'].includes(stop.status || 'geplant') ? `<button class="btn mwf-big" data-action="mwf-arrive" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}">Angekommen</button>` : ''
   const blocks = pls.map((p, i) => placementBlock(tour, stop, p, i, work)).join('')
   const foot = isFinal(stop) ? finishedBox(tour, stop) : work ? `<div class="mwf-foot"><button class="btn primary mwf-big mwf-finish" data-action="mwf-finish-open" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}">${ICON.check} Stopp abschließen</button></div>` : '<p class="note">Nur ansehen: Diese Tour fährt jemand anders.</p>'

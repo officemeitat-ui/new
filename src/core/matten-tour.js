@@ -202,6 +202,8 @@ export function stopsFromJobs({ jobs = [], placements = [], objects = [], custom
 
 // ---------------------------------------------------------------- Tourvorschlag
 
+/** Zeiten eines Stopps aus dem Zeitplan; pause { from, to, minutes }, wenn danach die Ruhepause liegt. */
+const timesOf = (x) => ({ arrival: x.arrival, start: x.start, departure: x.departure, wait: x.wait, travel: x.travel, km: x.km, ...(x.pause ? { pause: { ...x.pause } } : {}) })
 const routingStop = (s) => ({ id: s.id, lat: s.lat, lon: s.lon, window: s.window || null, minutes: Number(s.workMinutes) || 0, demand: Number(s.demand) || 0 })
 const shiftOf = (d, settings) => ({ from: d?.start || settings?.workday?.from || DEFAULT_SHIFT.start, to: d?.end || settings?.workday?.to || DEFAULT_SHIFT.end })
 const capacityOf = (d) => (Number(d?.capacity) > 0 ? Number(d.capacity) : null)
@@ -274,7 +276,7 @@ export async function proposeTours({ stops = [], drivers = [], depot = null, pro
     for (const r of res.routes || []) {
       if (!r.stops?.length) continue
       const d = g.drivers.find((x) => x.id === r.driverId) || {}
-      const tourStops = r.stops.map((x) => ({ ...clone(byId.get(x.id)), times: { arrival: x.arrival, start: x.start, departure: x.departure, wait: x.wait, travel: x.travel, km: x.km } }))
+      const tourStops = r.stops.map((x) => ({ ...clone(byId.get(x.id)), times: timesOf(x) }))
       const areas = [...new Set(tourStops.map((s) => s.areaId || ''))]
       const areaId = g.areaId || (areas.length === 1 ? areas[0] : '')
       const cap = capacityOf(d)
@@ -301,6 +303,7 @@ export async function proposeTours({ stops = [], drivers = [], depot = null, pro
           wait: r.wait,
           load: r.load,
           back: r.back,
+          ...(r.pause ? { pause: clone(r.pause) } : {}),
           shift: shiftOf(d, cfg),
           ...(cap ? { capacity: cap } : {}),
           depot: depotCopy(home),
@@ -419,9 +422,13 @@ export function recalcTimes(tour, matrix = null, settings = {}) {
   })
   const next = stops.map((s, k) => {
     const x = res.stops[k]
-    return { ...s, times: { arrival: x.arrival, start: x.start, departure: x.departure, wait: x.wait, travel: x.travel, km: x.km } }
+    return { ...s, times: timesOf(x) }
   })
-  return { ...tour, stops: next, order: next.map((s) => s.id), route: { ...route, km: res.km, minutes: res.minutes, start: res.start, end: res.end, work: res.work, wait: res.wait, load: res.load, back: res.back } }
+  const nextRoute = { ...route, km: res.km, minutes: res.minutes, start: res.start, end: res.end, work: res.work, wait: res.wait, load: res.load, back: res.back }
+  // Ruhepause (§ 11 AZG, routing.js pauseSettings): nach welchem Stopp und wann
+  if (res.pause) nextRoute.pause = res.pause
+  else delete nextRoute.pause
+  return { ...tour, stops: next, order: next.map((s) => s.id), route: nextRoute }
 }
 
 // ---------------------------------------------------------------- Fahrzeiten von Google bzw. OpenRouteService (E8)
