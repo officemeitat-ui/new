@@ -42,13 +42,17 @@ import {
 } from '../../core/matten.js'
 import { placementPhotos, refPhotoPath } from '../../core/matten-fotos.js'
 import { tourYears } from '../../core/matten-touren.js'
+import { qrLink } from '../../core/matten-qr.js'
+import { qrStickerDocument, qrStickerName } from '../../export/matten-qr-pdf.js'
 import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { openPhotoPath, rememberPhoto, shrinkPhoto } from '../matten-fotos.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { importUndoBanner } from '../import-undo.js'
 import { geocode } from '../geocode.js'
 import { chosenProvider, findCoords } from '../matten-routing.js'
-import { checked, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { checked, download, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { loadLogo, pdfBlob } from '../pdf.js'
+import { webReady } from '../matten-webspace.js'
 import { importTab, mayImport } from './matten-uebernahme.js'
 
 const MODULE = 'matten'
@@ -122,6 +126,7 @@ function mattenView() {
         { label: 'Kalender', icon: ICON.calendar, action: 'view', data: { view: 'mw-kalender' }, hint: 'Einsätze planen, verschieben' },
         ed && { label: 'Gebiete (Tourrunden)', icon: ICON.gear, action: 'mw-areas-open', hint: 'anlegen, umbenennen' },
         ed && { label: 'Rhythmus je Gebiet', icon: ICON.calendar, action: 'mw-rhythm-open', hint: 'nächster Wechsel und Intervall für ein ganzes Gebiet' },
+        app.config.features?.download !== false && { label: 'QR-Aufkleber drucken', icon: ICON.download, action: 'mw-qr-open', hint: 'je Liegeplatz, Fahrer scannen beim Wechsel' },
         ed && geoMissing() && { label: `Koordinaten für alle fehlenden suchen (${geoMissing()})`, icon: ICON.search, action: 'mw-geo-all', hint: `für Route und Karte, über ${chosenProvider()?.short || 'OpenStreetMap'}` },
         sees('fakturierung') && { label: 'Mattentypen und Preise', icon: ICON.gear, action: 'mw-types-goto', hint: 'in der Fakturierung' },
         mayImport() && { label: 'Übernahme aus dem Werkzeug', icon: ICON.download, action: 'mw-tab', data: { v: 'uebernahme' }, hint: 'einmalig, mit Sicherung' },
@@ -705,3 +710,67 @@ registerActions(
 )
 
 export { rowsAt as mattenRows, plural, short }
+
+// ---------------------------------------------------------------- QR-Aufkleber (core/matten-qr.js, export/matten-qr-pdf.js)
+
+/** Aktive Liegeplätze für die Aufkleber: Kunde, Objekt, Name, Stockwerk. */
+function qrRows() {
+  return doc()
+    .placements.filter((p) => p.active !== false)
+    .map((p) => ({ id: p.id, name: p.name, floor: p.floor || '', objectId: p.objectId, objectName: objOf(p.objectId)?.name || '', customerId: p.customerId || p.customer?.id || '', customerName: p.customer?.name || '' }))
+    .sort((a, b) => a.customerName.localeCompare(b.customerName, 'de') || a.objectName.localeCompare(b.objectName, 'de') || a.name.localeCompare(b.name, 'de', { numeric: true }))
+}
+
+function qrModal(c, m) {
+  const all = qrRows()
+  const customers = [...new Map(all.map((r) => [r.customerId, r.customerName || 'ohne Kunde'])).entries()]
+  const objects = [...new Map(all.filter((r) => !m.cust || r.customerId === m.cust).map((r) => [r.objectId, r.objectName || 'Objekt'])).entries()]
+  const shown = all.filter((r) => (!m.cust || r.customerId === m.cust) && (!m.obj || r.objectId === m.obj))
+  m.off ||= []
+  const off = new Set(m.off)
+  const rows = shown.map((r, i) => `<label class="check"><input type="checkbox" name="mw-qr-p" id="mw-qr-p-${i}" value="${esc(r.id)}" ${off.has(r.id) ? '' : 'checked'} data-change="mw-qr-pick"><span>${esc(r.name)}${r.floor ? ` <span class="muted">(${esc(r.floor)})</span>` : ''} <span class="muted">· ${esc(r.objectName)}</span></span></label>`).join('')
+  const web = webReady()
+  return modalFrame({
+    title: 'QR-Aufkleber für Liegeplätze',
+    wide: true,
+    body: `<p class="note">Je Liegeplatz ein Aufkleber mit QR-Code. Der Fahrer scannt ihn beim Wechsel mit der Handykamera: die App öffnet den Stopp seiner Tour und vermerkt „vor Ort bestätigt (QR)“ mit Uhrzeit. Aufkleber laminieren bzw. wetterfest drucken und neben die Matte kleben (Wand, Türrahmen, Säule).</p>
+      ${web ? '' : '<p class="note">Die Fahrerseite am Webspace ist nicht eingerichtet: die Codes öffnen direkt die App (nur für Fahrer mit Microsoft-Konto). Für Fahrer ohne Konto zuerst die Fahrerseite einrichten (Tourenplanung → Mehr), dann drucken.</p>'}
+      <div class="form-grid">
+        <label class="field"><span>Kunde</span><select id="mw-qr-cust" data-change="mw-qr-filter">${options(customers, m.cust || '', { empty: 'alle Kunden' })}</select></label>
+        <label class="field"><span>Objekt</span><select id="mw-qr-obj" data-change="mw-qr-filter">${options(objects, m.obj || '', { empty: 'alle Objekte' })}</select></label>
+      </div>
+      <fieldset class="mw-qr-list"><legend>${shown.length} ${shown.length === 1 ? 'Liegeplatz' : 'Liegeplätze'}</legend>${rows || '<p class="muted">Keine aktiven Liegeplätze.</p>'}</fieldset>`,
+    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions"><button class="btn primary" data-action="mw-qr-pdf" ${shown.length ? '' : 'disabled'}>${ICON.download} Aufkleber als PDF</button></div>`,
+  })
+}
+registerModal('mw-qr', qrModal, { module: MODULE })
+
+registerActions({
+  'mw-qr-open': () => openModal({ type: 'mw-qr', cust: '', obj: '', off: [] }),
+  'mw-qr-filter': () => {
+    const m = app.ui.modal
+    const cust = val('mw-qr-cust')
+    m.obj = cust !== m.cust ? '' : val('mw-qr-obj')
+    m.cust = cust
+    renderModal()
+  },
+  'mw-qr-pick': (el) => {
+    const m = app.ui.modal
+    const off = new Set(m.off || [])
+    if (el.checked) off.delete(el.value)
+    else off.add(el.value)
+    m.off = [...off]
+  },
+  'mw-qr-pdf': async () => {
+    const m = app.ui.modal
+    const off = new Set(m.off || [])
+    const items = qrRows().filter((r) => (!m.cust || r.customerId === m.cust) && (!m.obj || r.objectId === m.obj) && !off.has(r.id))
+    if (!items.length) return toast('Bitte mindestens einen Liegeplatz wählen.')
+    const appBase = `${location.origin}${location.pathname}`
+    const webBase = webReady() ? new URL('.', location.href).href : ''
+    const title = m.obj ? items[0].objectName : m.cust ? items[0].customerName : ''
+    const pdf = await pdfBlob(qrStickerDocument({ items, link: (id) => qrLink(id, { appBase, webBase }), title, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null) }))
+    download(qrStickerName(title, todayISO()), pdf)
+    toast(`${items.length} ${items.length === 1 ? 'Aufkleber' : 'Aufkleber'} als PDF.`)
+  },
+})

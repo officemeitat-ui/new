@@ -537,14 +537,14 @@ lazy(BUERO, {
       text: 'Mattenwechsel: Mattenbestand je Typ (Lager sauber, beim Kunden, Fahrzeug, Wäscherei), Inventur, Wäscherei',
     },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-rhythm mw-imp-paste mw-closures mw-st-list mw-st-edit mw-tp-edit mw-tp-ho mw-tp-avis mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwg-routing mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
+  modals: 'mw-qr mw-edit mw-areas mw-job mw-plan mw-rhythm mw-imp-paste mw-closures mw-st-list mw-st-edit mw-tp-edit mw-tp-ho mw-tp-avis mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwg-routing mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode mw-geo-all mw-photo-open mw-photo-add mw-photo-use mw-photo-del
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-paste-open mw-imp-paste-template mw-imp-paste-check mw-imp-paste-use mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-new-types mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show mw-rhythm-open mw-rhythm-spread mw-rhythm-save
     mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save
     mw-st-open mw-st-edit mw-st-filter mw-st-search mw-st-add mw-st-add-all mw-st-move mw-st-del mw-st-save mw-st-remove mw-st-align
     mw-tp-goto mw-tp-day mw-tp-map mw-tp-date mw-tp-reload mw-tp-depot-open mw-tp-drivers-open mw-tp-drv mw-tp-propose mw-tp-move mw-tp-transfer
-    mw-tp-remove mw-tp-add mw-tp-release mw-tp-ho-open mw-tp-ho-all mw-tp-ho mw-tp-withdraw mw-tp-avis-open mw-tp-avis-pick mw-tp-avis-send mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save
+    mw-qr-open mw-qr-filter mw-qr-pick mw-qr-pdf mw-tp-remove mw-tp-add mw-tp-release mw-tp-ho-open mw-tp-ho-all mw-tp-ho mw-tp-withdraw mw-tp-avis-open mw-tp-avis-pick mw-tp-avis-send mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save
     mw-tp-depot-geo mw-tp-depot-save mw-tp-drv-add mw-tp-drv-del mw-tp-drivers-save mww-dr-web mww-dr-newlink
     mww-web-open mww-copy mww-web-save mww-web-file mww-web-sync mww-web-publish
     mwg-open mwg-save mwg-remove mwg-retime mwg-geo

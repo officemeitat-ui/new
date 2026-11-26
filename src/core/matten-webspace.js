@@ -17,6 +17,7 @@
 import { addPlacementPhoto, confirmPlacement, finishStop, isFinal, localDate, markNotPossible, orderedStops, photoPath, photoProblem, photoRule, placementsOf, setPlacementNote, setQuantity, setStopStatus, startTour } from './matten-fahrt.js'
 import { loadList } from './matten-tour.js'
 import { addReport, REPORT_KINDS } from './matten-meldungen.js'
+import { markScanned } from './matten-qr.js'
 
 export const WEB_PAGE = 'mattentour.php'
 /** So lange (Tage nach dem Tag der Tour) bleiben Touren, Meldungen und Fotos höchstens am Webspace. */
@@ -155,7 +156,7 @@ export function webSignatureSvg(path) {
 
 // ---------------------------------------------------------------- Meldungen vom Webspace
 
-const ARTEN = ['start', 'unterwegs', 'abschluss', 'problem']
+const ARTEN = ['start', 'unterwegs', 'abschluss', 'problem', 'scan']
 const ERGEBNISSE = ['gewechselt', 'nicht-moeglich', '']
 const AUSNAHMEN = ['nicht-angetroffen', 'teilweise', 'nicht-durchgefuehrt']
 
@@ -167,6 +168,13 @@ export function cleanWebEvent(m) {
   const zeit = Number(m.zeit) > 0 ? Math.round(Number(m.zeit)) : Math.round(Number(m.eingang) || 0)
   const out = { id, art: m.art, tour: String(m.tour), stopp: text(m.stopp), zeit, eingang: Math.round(Number(m.eingang) || zeit), fahrer: text(m.fahrer) }
   if (m.art !== 'start' && !out.stopp) return null
+  if (m.art === 'scan') {
+    // QR am Liegeplatz gescannt (core/matten-qr.js)
+    const lp = text(m.daten?.liegeplatz).slice(0, 80)
+    if (!lp) return null
+    out.daten = { liegeplatz: lp }
+    return out
+  }
   if (m.art === 'problem') {
     // Meldung ans Büro (core/matten-meldungen.js): Art, Liegeplatz, Text
     const d = m.daten && typeof m.daten === 'object' ? m.daten : {}
@@ -310,7 +318,10 @@ export function applyWebEvents(tour, events = [], { now = new Date().toISOString
           skipped.push({ id: ev.id, reason: 'Diesen Stopp gibt es in der Tour nicht mehr.' })
           continue
         }
-        if (ev.art === 'problem') {
+        if (ev.art === 'scan') {
+          // vor Ort bestätigt (QR): nur am offenen Stopp, der erste Scan zählt
+          if (!isFinal(stop) && hasPlacement(stop, ev.daten.liegeplatz)) t = markScanned(t, ev.stopp, ev.daten.liegeplatz, { now: at, by: who, via: 'qr' })
+        } else if (ev.art === 'problem') {
           // Meldung ans Büro: am Stopp wie aus der App (auch nach dem Abschluss); dieselbe Meldung nur einmal
           const id = `mr${ev.id}`.slice(0, 34)
           if (!(stop.reports || []).some((r) => r.id === id)) {

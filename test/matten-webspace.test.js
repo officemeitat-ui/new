@@ -314,3 +314,15 @@ test('Fotopflicht: an die Fahrerseite als fotoRegel; Abschluss vom Webspace ohne
   assert.equal(ok.tour.stops[0].web.fotoPflicht, undefined)
   assert.deepEqual(ok.notes, [])
 })
+
+test('QR-Scan am Webspace → „vor Ort bestätigt“ am Liegeplatz; zweiter Scan und Scan am abgeschlossenen Stopp ändern nichts', () => {
+  const scan = (id, lp, zeit = unix(8, 5)) => ({ id, art: 'scan', tour: 'mtwebweb000001', stopp: 'st-o1', zeit, eingang: zeit, fahrer: 'Ivo Beispiel', daten: { liegeplatz: lp } })
+  assert.equal(cleanWebEvent({ ...scan('scan00000001aa', 'x'), daten: {} }), null)
+  const r = applyWebEvents(tour(), [scan('scan00000001aa', 'Stiege 2'), scan('scan00000002aa', 'Stiege 2', unix(8, 9))], { now: NOW })
+  assert.deepEqual(r.applied, ['scan00000001aa', 'scan00000002aa'])
+  const it = r.tour.stops[0].items.find((x) => x.placementId === 'Stiege 2')
+  assert.deepEqual(it.scan, { at: `${DAY}T07:05:00.000Z`, by: 'Ivo Beispiel', via: 'qr' })
+  assert.equal(r.tour.stops[0].status, 'in-bearbeitung')
+  const done = applyWebEvents(tour(), [abschluss(), scan('scan00000003aa', 'Haupteingang', unix(9))], { now: NOW })
+  assert.equal(done.tour.stops[0].items.find((x) => x.placementId === 'Haupteingang').scan, undefined)
+})

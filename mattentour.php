@@ -464,6 +464,9 @@ function stand(array $datei): array
         } elseif (($m['art'] ?? '') === 'unterwegs' && isset($out['stopps'][$sid]) && !$out['stopps'][$sid]['fertig']) {
             $out['gestartet'] = true;
             $out['stopps'][$sid]['status'] = 'unterwegs';
+        } elseif (($m['art'] ?? '') === 'scan' && isset($out['stopps'][$sid]) && !$out['stopps'][$sid]['fertig']) {
+            $out['gestartet'] = true;
+            $out['stopps'][$sid]['status'] = 'in-bearbeitung';
         } elseif (($m['art'] ?? '') === 'abschluss' && isset($out['stopps'][$sid])) {
             $out['gestartet'] = true;
             $out['stopps'][$sid] = ['status' => (string) $m['status'], 'fertig' => true, 'zeit' => (int) $m['zeit'], 'meldung' => $m];
@@ -954,7 +957,15 @@ foreach ($codes as $c) {
     }
 }
 sprache_waehlen($fahrer, true);
+// QR-Aufkleber am Liegeplatz (mattentour.php?qr=<Liegeplatz>)
+$qr = (string) ($_GET['qr'] ?? '');
+$qr = preg_match(TEIL_MUSTER, $qr) ? $qr : '';
 if (!$fahrer || ($explizit !== '' && $code !== $explizit)) {
+    // kein Fahrer-Link auf diesem Gerät: Fahrer mit Microsoft-Konto arbeiten in der App (dort öffnet der Scan den Stopp)
+    if ($qr !== '' && $explizit === '' && preg_match('#^https?://#', (string) ($e['adresse'] ?? ''))) {
+        header('Location: ' . rtrim((string) $e['adresse'], '/') . '/#mw-touren/qr/' . rawurlencode($qr), true, 302);
+        exit;
+    }
     if ($explizit !== '') {
         grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, true); // nur ausdrücklich genannte Codes zählen
     }
@@ -992,6 +1003,38 @@ foreach ((array) ($fahrer['touren'] ?? []) as $tid => $datum) {
     $meine[(string) $tid] = ['datei' => $d, 'stand' => $st, 'fertig' => $fertig, 'alt' => $datum < heute() && !$fertig];
 }
 uasort($meine, fn ($a, $b) => [!$a['alt'], $a['fertig'], $a['datei']['tour']['datum']] <=> [!$b['alt'], $b['fertig'], $b['datei']['tour']['datum']]);
+
+// ---------------------------------------------------------------- QR am Liegeplatz gescannt
+
+if ($qr !== '' && $methode === 'GET' && $aktion === '') {
+    // offener Stopp mit dem Liegeplatz: zuerst die Touren von heute, dann liegen gebliebene
+    $ziel = null;
+    foreach ([true, false] as $heuteZuerst) {
+        foreach ($meine as $id => $x) {
+            $t = $x['datei']['tour'];
+            if ($heuteZuerst ? $t['datum'] !== heute() : $t['datum'] >= heute()) {
+                continue;
+            }
+            foreach ($t['stopps'] as $s) {
+                if (empty($x['stand']['stopps'][$s['id']]['fertig']) && in_array($qr, array_column($s['liegeplaetze'], 'id'), true)) {
+                    $ziel = [(string) $id, (string) $s['id']];
+                    break 3;
+                }
+            }
+        }
+    }
+    if (!$ziel) {
+        mt_seite('<h1>' . th('mt_titel') . '</h1><p>' . th('mt_qr_nicht_heute') . '</p><p><a class="knopf" href="mattentour.php">' . th('mt_zurueck_tour') . '</a></p>');
+    }
+    [$zid, $zsid] = $ziel;
+    $schon = array_filter((array) ($meine[$zid]['datei']['meldungen'] ?? []), fn ($m) => ($m['art'] ?? '') === 'scan' && ($m['stopp'] ?? '') === $zsid && (($m['daten']['liegeplatz'] ?? '') === $qr));
+    // als Nachweis nur aus einem Scan bzw. getippten Link (nicht von einer fremden Seite), je Liegeplatz einmal
+    if (!$schon && !fremde_herkunft() && !grenze('meldung', $hash, GRENZE_MELDUNGEN, true)) {
+        meldung_anhaengen($zid, ['id' => bin2hex(random_bytes(12)), 'art' => 'scan', 'stopp' => $zsid, 'zeit' => jetzt(), 'eingang' => jetzt(), 'uebernommen' => null, 'daten' => ['liegeplatz' => $qr]]);
+    }
+    header('Location: mattentour.php?tour=' . rawurlencode($zid) . '&stopp=' . rawurlencode($zsid) . '&gesendet=scan', true, 303);
+    exit;
+}
 
 // ---------------------------------------------------------------- Meldung des Fahrers (Start, unterwegs, Abschluss)
 
@@ -1195,7 +1238,7 @@ if (!array_filter($stopps, fn ($s) => $s['id'] === $aktiv)) {
 }
 $tourUrl = 'mattentour.php?tour=' . rawurlencode($tid);
 $meldungsfelder = fn (string $art, string $sid = '') => $pFeld . '<input type="hidden" name="art" value="' . $art . '"><input type="hidden" name="tour" value="' . $h($tid) . '"><input type="hidden" name="stopp" value="' . $h($sid) . '"><input type="hidden" name="meldung" value="' . bin2hex(random_bytes(12)) . '"><input type="hidden" name="zeit" value="">';
-$gesendet = ['start' => 'mt_ok_start', 'abschluss' => 'mt_ok_abschluss', 'problem' => 'mt_ok_problem'][(string) ($_GET['gesendet'] ?? '')] ?? '';
+$gesendet = ['start' => 'mt_ok_start', 'abschluss' => 'mt_ok_abschluss', 'problem' => 'mt_ok_problem', 'scan' => 'mt_ok_scan'][(string) ($_GET['gesendet'] ?? '')] ?? '';
 $hinweis = $gesendet ? '<p class="ok" role="status">' . th($gesendet) . '</p>' : '';
 $naviLink = fn (array $s, string $cls = 'knopf') => '<a class="' . $cls . '" href="' . $h(navi_url($s)) . '" target="_blank" rel="noopener" data-mww-unterwegs="' . $h($s['id']) . '">' . th('mt_navigation') . '</a>';
 
@@ -1286,6 +1329,13 @@ foreach ($stopps as $i => $s) {
     }
     $teil .= $naviLink($s);
     $form = '';
+    // per QR bestätigte Liegeplätze dieses Stopps: Liegeplatz → Zeit
+    $gescannt = [];
+    foreach ((array) ($datei['meldungen'] ?? []) as $m) {
+        if (($m['art'] ?? '') === 'scan' && ($m['stopp'] ?? '') === $sid && !isset($gescannt[$m['daten']['liegeplatz'] ?? ''])) {
+            $gescannt[(string) ($m['daten']['liegeplatz'] ?? '')] = (int) $m['zeit'];
+        }
+    }
     foreach ($s['liegeplaetze'] as $k => $l) {
         $lid = $l['id'];
         $fid = 'f' . $i . '-' . $k;
@@ -1299,6 +1349,7 @@ foreach ($stopps as $i => $s) {
                 . '<button type="button" class="zweit" data-mww-schritt="1" aria-label="' . $h(t('mt_mehr', ['matte' => $m['bezeichnung']])) . '" hidden>+</button></span></div>';
         }
         $form .= '<fieldset class="mww-pl" data-mww-pl="' . $h($lid) . '" style="min-width:0"><legend class="mww-kopf" style="padding:0"><h3>' . $h($l['name'] ?: t('mt_liegeplatz')) . '</h3></legend>'
+            . (isset($gescannt[$lid]) ? '<p class="ok">' . th('mt_qr_bestaetigt', ['zeit' => uhr($gescannt[$lid])]) . '</p>' : '')
             . ($meta ? '<p class="meta">' . $h(implode(' · ', $meta)) . '</p>' : '')
             . ($l['hinweis'] ? '<p class="hinweis">' . $h($l['hinweis']) . '</p>' : '')
             . '<div class="mww-wahl" role="radiogroup" aria-label="' . $h(t('mt_ergebnis', ['name' => $l['name'] ?: t('mt_liegeplatz')])) . '">'

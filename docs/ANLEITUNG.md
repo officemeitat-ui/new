@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 445 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 446 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
-- [Objekte & Kunden](#objekte-kunden) (116)
+- [Objekte & Kunden](#objekte-kunden) (117)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (83)
 - [Verwaltung](#verwaltung) (76)
@@ -2493,6 +2493,22 @@ Unter „Matten-Touren“ sehen Fahrer ihre vom Büro freigegebenen Touren: Stop
 > Tipp: Das Büro sieht hier alle Touren mit Fortschritt.
 
 *Fahrer Mattenwechsel, Mattenwechsel Büro, Vollzugriff*
+
+### QR-Code am Liegeplatz (Nachweis vor Ort)
+
+*In der App: Matten-Liegeplätze*
+
+Je Liegeplatz ein Aufkleber mit QR-Code. Der Fahrer scannt ihn beim Wechsel mit der Handykamera: die App öffnet den Stopp seiner Tour von heute und vermerkt am Liegeplatz „QR“ mit Uhrzeit. Das Büro sieht das in der Tourenplanung, als Nachweis, dass der Fahrer dort war.
+
+1. „Matten-Liegeplätze“ → „Mehr“ → „QR-Aufkleber drucken“.
+2. Kunde bzw. Objekt wählen, Liegeplätze an- oder abwählen.
+3. „Aufkleber als PDF“, ausdrucken, laminieren und neben die Matte kleben.
+4. Fahrer: beim Wechsel den Code mit der Handykamera scannen und den Link öffnen.
+
+> Tipp: Mit eingerichteter Fahrerseite am Webspace funktionieren die Codes auch für Fahrer ohne Microsoft-Konto; deshalb die Fahrerseite vor dem Drucken einrichten.
+> Tipp: Der erste Scan zählt; ein Liegeplatz, der heute in keiner Tour ist, öffnet im Büro den Liegeplatz.
+
+*Drucken: Mattenwechsel Büro, Vollzugriff; Scannen: Fahrer*
 
 ### Problem am Stopp melden (Schaden, Beschwerde)
 

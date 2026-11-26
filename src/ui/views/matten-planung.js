@@ -297,7 +297,7 @@ function sollIstHtml(s, date) {
 function stopRow(t, s, i, { ed, others }) {
   const canEdit = ed && editableByOffice(t)
   const items = (s.items || [])
-    .map((it) => `<li>${esc(it.placementName)}${it.floor ? ` <span class="muted">(${esc(it.floor)})</span>` : ''}: ${it.mat ? `${it.planned} × ${esc(loadLabel(it.mat))}` : '<span class="muted">ohne Matte</span>'}${it.overdue ? ' <span class="mw-st st-ueberfaellig">überfällig</span>' : ''}</li>`)
+    .map((it) => `<li>${esc(it.placementName)}${it.floor ? ` <span class="muted">(${esc(it.floor)})</span>` : ''}: ${it.mat ? `${it.planned} × ${esc(loadLabel(it.mat))}` : '<span class="muted">ohne Matte</span>'}${it.overdue ? ' <span class="mw-st st-ueberfaellig">überfällig</span>' : ''}${it.scan ? ` <span class="pill info" title="vor Ort bestätigt (QR)">QR ${esc(new Date(it.scan.at).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Vienna' }))}</span>` : ''}</li>`)
     .join('')
   const win = s.window?.from || s.window?.to ? `Zeitfenster ${s.window.from || '…'}–${s.window.to || '…'}${s.windowNote ? `, ${s.windowNote}` : ''}` : s.windowNote || ''
   const n = (t.stops || []).length

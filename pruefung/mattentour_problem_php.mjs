@@ -4,7 +4,9 @@
 // Stopp), ohne Netz (wartet im Gerät, wird nachgesendet); die App holt die Meldungen ab und legt sie am Stopp an
 // (applyWebEvents). Der Abschluss des Stopps bleibt davon unberührt.
 // Fotopflicht „immer“ (an der Tour): Hinweis am Stopp; Abschluss ohne Foto abgelehnt, auch ohne Netz (nichts im Ausgang);
-// mit Foto angenommen, die App übernimmt den Abschluss mit dem Foto. Port 19878.
+// mit Foto angenommen, die App übernimmt den Abschluss mit dem Foto.
+// QR am Liegeplatz (mattentour.php?qr=…): mit Fahrer-Link im Gerät → Stopp öffnen, „QR bestätigt“, Rückmeldung „scan“
+// (einmal je Liegeplatz), App vermerkt den Scan; ohne Fahrer-Link → weiter in die App; fremder Liegeplatz → Hinweis. Port 19878.
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -84,13 +86,30 @@ try {
   // App holt ab
   const res = applyWebEvents(tour, events, { now: new Date().toISOString() })
   const reports = res.tour.stops[0].reports || []
-  check('App: zwei Meldungen am Stopp mit Art, Liegeplatz, Text und Fahrer', reports.length === 2 && reports[0].kind === 'schaden' && reports[0].placementId === 'lpgac1' && reports[0].placementName === 'GAC Schuhkontrolle' && reports[1].kind === 'kunde' && reports.every((x) => x.by === 'Ivo Beispiel'), JSON.stringify(reports))
+  // beide in derselben Sekunde möglich: Reihenfolge dann beliebig
+  const rSchaden = reports.find((x) => x.kind === 'schaden')
+  check('App: zwei Meldungen am Stopp mit Art, Liegeplatz, Text und Fahrer', reports.length === 2 && !!rSchaden && rSchaden.placementId === 'lpgac1' && rSchaden.placementName === 'GAC Schuhkontrolle' && reports.some((x) => x.kind === 'kunde') && reports.every((x) => x.by === 'Ivo Beispiel'), JSON.stringify(reports))
   check('App: Stopp unverändert offen', res.tour.stops[0].status === 'geplant', res.tour.stops[0].status)
   r = await api('uebernommen', { ids: res.done })
   check('Übernommen gemeldet', r.status === 200 && ((await api('meldungen')).json?.meldungen || []).length === 0)
 
+  // ------------------------------------------------ QR am Liegeplatz
+  await page.goto(`http://127.0.0.1:${PORT}/mattentour.php?qr=lpterm2`)
+  check('Scan: Stopp offen, „Liegeplatz per QR bestätigt“', page.url().includes(`stopp=${sid}`) && /Liegeplatz per QR bestätigt/.test(await page.locator(`section[data-mww-teil="${sid}"]`).textContent()), page.url())
+  check('Scan: am Liegeplatz „QR bestätigt …“', /QR bestätigt \d\d:\d\d/.test(await page.locator(`section[data-mww-teil="${sid}"] [data-mww-pl="lpterm2"]`).textContent()))
+  await page.goto(`http://127.0.0.1:${PORT}/mattentour.php?qr=lpterm2`)
+  let scans = ((await api('meldungen')).json?.meldungen || []).filter((m) => m.art === 'scan')
+  check('Zweiter Scan: nur eine Rückmeldung „scan“', scans.length === 1 && scans[0].daten.liegeplatz === 'lpterm2', JSON.stringify(scans))
+  const scanned = applyWebEvents(res.tour, scans, { now: new Date().toISOString() })
+  check('App: Scan am Liegeplatz vermerkt, Stopp in Bearbeitung', !!scanned.tour.stops[0].items.find((x) => x.placementId === 'lpterm2')?.scan && scanned.tour.stops[0].status === 'in-bearbeitung')
+  await api('uebernommen', { ids: scanned.done })
+  await page.goto(`http://127.0.0.1:${PORT}/mattentour.php?qr=gibtsnicht`)
+  check('Fremder Liegeplatz: „in keiner deiner offenen Touren“', /in keiner deiner offenen Touren/.test(await page.textContent('body')))
+  const fremd = await fetch(`http://127.0.0.1:${PORT}/mattentour.php?qr=lpterm2`, { redirect: 'manual' })
+  check('Ohne Fahrer-Link: weiter in die App (#mw-touren/qr/…)', fremd.status === 302 && (fremd.headers.get('location') || '').endsWith('/#mw-touren/qr/lpterm2'), `${fremd.status} ${fremd.headers.get('location')}`)
+
   // ------------------------------------------------ Fotopflicht beim Abschluss
-  await page.reload()
+  await page.goto(`http://127.0.0.1:${PORT}/mattentour.php?tour=${tour.id}&stopp=${encodeURIComponent(sid)}`)
   const st = page.locator(`section[data-mww-teil="${sid}"]`)
   check('Hinweis „Pflicht: … mindestens ein Foto“', /Pflicht: an diesem Stopp mindestens ein Foto/.test(await st.textContent()))
   const form = st.locator('form[data-mww-stopp]')

@@ -45,9 +45,10 @@ import {
   UNSIGNED_REASONS,
 } from '../../core/matten-fahrt.js'
 import { addReport, removeReport, REPORT_KINDS, reportProblem } from '../../core/matten-meldungen.js'
+import { markScanned, matchPlacementId, qrIdFromKey, scansOf, scanTarget } from '../../core/matten-qr.js'
 import { loadList } from '../../core/matten-tour.js'
 import { navigationUrl } from '../../core/routing.js'
-import { app, canEdit, closeModal, confirmStep, openModal, registerActions, registerModal, registerUploadHook, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, confirmStep, ensureAction, openModal, registerActions, registerModal, registerUploadHook, registerView, renderModal, renderNow, toast } from '../context.js'
 import { openPhotoPath, rememberPhoto, shrinkPhoto } from '../matten-fotos.js'
 import { photoProblem, photoRuleHint } from '../../core/matten-fotos.js'
 import { onToursChanged, tourStore as sharedTourStore } from '../matten-tourablage.js'
@@ -231,12 +232,55 @@ function render() {
   if (!st) return `${head()}<div class="banner"><p>Touren gibt es nur mit einer Ablage (SharePoint).</p></div>`
   ensureLoaded()
   if (!st.loaded) return `${head()}<p class="empty">Touren werden geladen …</p>`
+  // QR-Aufkleber am Liegeplatz gescannt (#mw-touren/qr/<Liegeplatz>): Stopp öffnen und Scan vermerken
+  if (qrIdFromKey(app.ui.linked)) handleScan(st)
   const tour = app.ui.mwfTour ? tourOf(app.ui.mwfTour) : null
   if (tour && mayView(tour)) {
     const stop = app.ui.mwfStop ? stopOf(tour, app.ui.mwfStop) : null
     return stop ? stopView(tour, stop) : tourView(tour)
   }
   return listView()
+}
+
+/**
+ * QR am Liegeplatz (core/matten-qr.js): eigene Tour von heute (bzw. liegen gebliebene) mit dem Liegeplatz → Stopp öffnen,
+ * „vor Ort bestätigt (QR)“ vermerken. Das Büro: Stopp in der Tour eines Fahrers ansehen, sonst den Liegeplatz öffnen.
+ */
+function handleScan(st) {
+  const id = qrIdFromKey(app.ui.linked)
+  app.ui.linked = null
+  const today = todayISO()
+  const mine = toursFor(st.tours(), { ...me(), office: false, all: browserMode(), today, days: 0 }).map((x) => x.tour)
+  const target = scanTarget(mine, id, { today })
+  if (target && canWork(target.tour)) {
+    Object.assign(app.ui, { mwfTour: target.tour.id, mwfStop: target.stop.id })
+    const name = (target.stop.items || []).find((it) => it.placementId === target.placementId)?.placementName || 'Liegeplatz'
+    setTimeout(async () => {
+      const next = await change(target.tour.id, (t, o) => markScanned(t, target.stop.id, target.placementId, { ...o, via: 'qr' }))
+      if (next) toast(`${name}: vor Ort bestätigt (QR, ${localTime(new Date().toISOString())} Uhr).`)
+      renderNow()
+    }, 0)
+    return
+  }
+  if (isOffice()) {
+    const other = scanTarget(st.tours(), id, { today })
+    if (other) {
+      Object.assign(app.ui, { mwfTour: other.tour.id, mwfStop: other.stop.id })
+      toast(`Liegeplatz in der Tour von ${other.tour.driverName || 'ohne Fahrer'}: bestätigen kann ihn nur der Fahrer.`)
+      return
+    }
+    const pid = matchPlacementId(id, (app.data.matten?.placements || []).map((p) => p.id))
+    if (pid) {
+      setTimeout(async () => {
+        app.ui.view = 'mw-liegeplaetze'
+        renderNow()
+        const fn = await ensureAction('mw-edit-open')
+        fn?.({ dataset: { id: pid }, files: [] })
+      }, 0)
+      return
+    }
+  }
+  toast('Dieser Liegeplatz ist heute in keiner deiner offenen Touren.')
 }
 
 /** Fahrer sehen nur eigene Touren (auch beim Öffnen über eine gemerkte ID). */
@@ -422,7 +466,7 @@ function placementBlock(tour, stop, p, i, work) {
     .map((ph, k) => `<span class="pill mwf-photo"><button type="button" class="mwf-photo-open" data-action="mwf-photo-open" data-path="${esc(ph.path)}" title="${esc(ph.name)}">${ICON.camera} Foto ${k + 1}${ph.queued ? ' · wartet auf Netz' : ''}</button>${work ? `<button type="button" class="btn small ghost" data-action="mwf-photo-del" ${data} data-path="${esc(ph.path)}" aria-label="Foto ${k + 1} entfernen">${ICON.close}</button>` : ''}</span>`)
     .join('')
   return `<section class="mwf-pl ${st}" data-pl="${esc(p.placementId)}">
-    <div class="mwf-card-top"><h3>${esc(p.placementName || 'Liegeplatz')}</h3>${pill}</div>
+    <div class="mwf-card-top"><h3>${esc(p.placementName || 'Liegeplatz')}</h3>${pill}${scansOf(stop).get(p.placementId) ? ` <span class="pill info" title="vor Ort bestätigt (QR)">QR ${esc(localTime(scansOf(stop).get(p.placementId).at))}</span>` : ''}</div>
     ${meta ? `<p class="mwf-meta">${meta}</p>` : ''}
     ${p.hint ? `<p class="mwf-hint">${esc(p.hint)}</p>` : ''}
     ${p.refPhoto ? `<p class="mwf-ref"><button type="button" class="btn mwf-tap" data-action="mwf-ref-open" data-path="${esc(p.refPhoto)}">${ICON.camera} So liegt die Matte (Foto vom Büro)</button></p>` : ''}

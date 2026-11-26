@@ -36,6 +36,7 @@ try {
   const modal = () => O.text('.modal')
 
   // ------------------------------------------------ 1. Stammtour anlegen
+  await O.page.waitForSelector('main [data-action="mw-tp-propose"]')
   await O.act('mw-st-open')
   await O.page.waitForSelector('.modal [data-action="mw-st-edit"]')
   check('Stammtouren: Erklärung, noch keine', /Noch keine Stammtour/.test(await modal()) && /fester Reihenfolge/.test(await modal()))
