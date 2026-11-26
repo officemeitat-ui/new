@@ -304,9 +304,36 @@ function tour_bereinigen(array $d): ?array
         'status' => in_array($status, TOUR_STATUS, true) ? $status : 'freigegeben',
         'fahrer' => ['hash' => $hash, 'name' => kurz($f['name'] ?? '', 80), 'sprache' => sprache_gueltig($f['sprache'] ?? null) ?? 'de'],
         'fahrzeug' => kurz($d['fahrzeug'] ?? '', 80),
+        'fotoRegel' => in_array($d['fotoRegel'] ?? '', ['ausnahme', 'immer'], true) ? $d['fotoRegel'] : 'nie',
         'stopps' => $stopps,
         'ladeliste' => $ladeliste,
     ];
+}
+
+/**
+ * Fotopflicht beim Abschluss wie in der App (photoProblem): 'immer' = mindestens ein Foto am Stopp; 'ausnahme' = Foto an
+ * jedem Liegeplatz „nicht möglich“ bzw. bei einer Ausnahme mit offenen Liegeplätzen eines am Stopp. '' = in Ordnung,
+ * sonst der Textschlüssel. $fotos: Liegeplatz-IDs der hochgeladenen Fotos.
+ */
+function foto_pflicht_fehlt(string $regel, array $daten, array $fotos): string
+{
+    if ($regel === 'immer') {
+        return $fotos ? '' : 'mt_fehler_foto_pflicht';
+    }
+    if ($regel !== 'ausnahme') {
+        return '';
+    }
+    $mit = array_flip($fotos);
+    $offen = false;
+    foreach ((array) ($daten['liegeplaetze'] ?? []) as $l) {
+        if (($l['ergebnis'] ?? '') === 'nicht-moeglich' && !isset($mit[$l['id']])) {
+            return 'mt_fehler_foto_ausnahme';
+        }
+        if (($l['ergebnis'] ?? '') === '') {
+            $offen = true;
+        }
+    }
+    return $offen && ($daten['ausnahme'] ?? '') !== '' && !$fotos ? 'mt_fehler_foto_ausnahme' : '';
 }
 
 /** Fotos einer Meldung löschen. */
@@ -1042,6 +1069,10 @@ if ($aktion === 'meldung' && $methode === 'POST') {
         if (count($roh) > FOTO_MAX) {
             $antwort(400, 'mt_fehler_foto_max', ['n' => FOTO_MAX]);
         }
+        $pflicht = foto_pflicht_fehlt((string) ($tour['fotoRegel'] ?? 'nie'), $daten, array_column($roh, 0));
+        if ($pflicht !== '') {
+            $antwort(400, $pflicht, [], ['stopp' => $sid]);
+        }
         if ($roh && grenze('foto', $hash, GRENZE_FOTOS, true, count($roh))) {
             $antwort(429, 'mt_zu_viele');
         }
@@ -1297,13 +1328,15 @@ foreach ($stopps as $i => $s) {
         . '<div class="mww-ohne-grund"><label for="s' . $i . '-og">' . th('mt_ohne_warum') . '</label><input type="text" id="s' . $i . '-og" name="ohne_grund" maxlength="120" list="mww-ohne" autocomplete="off"></div>'
         . '<p class="fehler" role="alert" data-mww-fehler hidden></p>'
         . '<button type="submit">' . th('mt_stopp_abschliessen') . '</button><p class="leise">' . th('mt_abschluss_info') . '</p></section>';
-    $teil .= '<form method="post" action="mattentour.php?aktion=meldung" enctype="multipart/form-data" data-mww-meldung data-mww-stopp="' . $h($sid) . '">' . $meldungsfelder('abschluss', $sid) . $form . '</form>';
+    $regel = (string) ($tour['fotoRegel'] ?? 'nie');
+    $pflichtHinweis = $regel === 'immer' ? '<p class="hinweis">' . th('mt_foto_pflicht_immer') . '</p>' : ($regel === 'ausnahme' ? '<p class="hinweis">' . th('mt_foto_pflicht_ausnahme') . '</p>' : '');
+    $teil .= $pflichtHinweis . '<form method="post" action="mattentour.php?aktion=meldung" enctype="multipart/form-data" data-mww-meldung data-mww-stopp="' . $h($sid) . '" data-mww-fotoregel="' . $h($regel) . '">' . $meldungsfelder('abschluss', $sid) . $form . '</form>';
     $teil .= $problemBlock($s, $i);
     $teile .= '<section class="mww-teil' . ($aktiv === $sid ? ' aktiv' : '') . '" id="stopp-' . $h($sid) . '" data-mww-teil="' . $h($sid) . '">' . $teil . '</section>';
 }
 $listen = '<datalist id="mww-rollen">' . $rollenListe . '</datalist><datalist id="mww-ohne">' . $ohneListe . '</datalist>';
 // Texte für das Skript (in der Sprache der Seite)
-$skriptTexte = ['problem_wartet' => t('mt_problem_wartet'), 'ausgang' => t('mt_ausgang'), 'ausgang_n' => t('mt_ausgang_n'), 'senden' => t('mt_jetzt_senden'), 'gesendet' => t('mt_wird_gesendet'), 'foto_weg' => t('mt_foto_entfernen'), 'foto_max' => t('mt_fehler_foto_max', ['n' => (string) FOTO_MAX]), 'foto_speicher' => t('mt_foto_speicher'), 'wartet' => t('mt_wartet'), 'nicht_gesendet' => t('mt_nicht_gesendet'), 'naechster' => t('mt_naechster'), 'uebersicht' => t('mt_zur_uebersicht'), 'gesendet_kurz' => t('mt_sendet')];
+$skriptTexte = ['problem_wartet' => t('mt_problem_wartet'), 'foto_pflicht' => t('mt_fehler_foto_pflicht'), 'foto_ausnahme' => t('mt_fehler_foto_ausnahme'), 'ausgang' => t('mt_ausgang'), 'ausgang_n' => t('mt_ausgang_n'), 'senden' => t('mt_jetzt_senden'), 'gesendet' => t('mt_wird_gesendet'), 'foto_weg' => t('mt_foto_entfernen'), 'foto_max' => t('mt_fehler_foto_max', ['n' => (string) FOTO_MAX]), 'foto_speicher' => t('mt_foto_speicher'), 'wartet' => t('mt_wartet'), 'nicht_gesendet' => t('mt_nicht_gesendet'), 'naechster' => t('mt_naechster'), 'uebersicht' => t('mt_zur_uebersicht'), 'gesendet_kurz' => t('mt_sendet')];
 mt_seite($kopf . '<div data-mww-tour="' . $h($tid) . '" data-mww-texte="' . $h((string) json_encode($skriptTexte, JSON_UNESCAPED_UNICODE)) . '">'
     . '<div class="mww-ausgang" data-mww-ausgang hidden role="status"></div>'
     . $uebersicht . $teile . $listen . '</div>' . $fuss);

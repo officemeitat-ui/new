@@ -14,7 +14,7 @@
 // finishStop); dieselbe Meldung zweimal ändert nichts (Kennung an der Tour in webspace.applied, am Stopp in web.event).
 // Fotos bekommen feste Pfade (Nummern ab 51 je Liegeplatz), damit ein wiederholter Abgleich dieselbe Datei trifft.
 
-import { addPlacementPhoto, confirmPlacement, finishStop, isFinal, localDate, markNotPossible, orderedStops, photoPath, placementsOf, setPlacementNote, setQuantity, setStopStatus, startTour } from './matten-fahrt.js'
+import { addPlacementPhoto, confirmPlacement, finishStop, isFinal, localDate, markNotPossible, orderedStops, photoPath, photoProblem, photoRule, placementsOf, setPlacementNote, setQuantity, setStopStatus, startTour } from './matten-fahrt.js'
 import { loadList } from './matten-tour.js'
 import { addReport, REPORT_KINDS } from './matten-meldungen.js'
 
@@ -107,6 +107,8 @@ export function webTourPayload(tour, identity) {
     status: tour.status === 'entwurf' ? 'freigegeben' : tour.status,
     fahrer: { hash: identity.hash, name: text(identity.name), sprache: text(identity.lang) || 'de' },
     fahrzeug: text(tour.vehicleLabel),
+    // Fotopflicht (Einstellung „Fotos des Fahrers“, Kopie an der Tour): die Fahrerseite prüft sie beim Abschluss
+    ...(photoRule(tour.photoRule) !== 'nie' ? { fotoRegel: photoRule(tour.photoRule) } : {}),
     stopps,
     ladeliste: loadList(tour).map((r) => ({ groesse: text(r.size), farbe: text(r.color), bezeichnung: webMatLabel(r), stueck: int(r.qty), stopps: int(r.stops) })),
   }
@@ -244,12 +246,18 @@ function applyFinish(tour, ev, { by, photos }) {
   const signature = svg && d.unterschrift.name ? { name: d.unterschrift.name, role: d.unterschrift.funktion, svg } : null
   const reason = signature ? '' : d.ohne?.grund || (d.unterschrift ? 'Unterschrift am Webspace nicht lesbar' : '')
   const base = { signature, reason, note: d.notiz || undefined, now: at, by, driverId: tour.driverId || '' }
+  // die Fotopflicht prüft die Fahrerseite selbst; draußen ist der Stopp erledigt: ohne Pflichtfoto trotzdem übernehmen
+  // (applyWebEvents vermerkt das am Stopp), sonst bliebe er in der App für immer offen
+  const rule = t.photoRule
+  const free = { ...t }
+  delete free.photoRule
+  const keep = (x) => (rule === undefined ? x : { ...x, photoRule: rule })
   try {
-    return finishStop(t, sid, { ...base, outcome: d.ausnahme })
+    return keep(finishStop(free, sid, { ...base, outcome: d.ausnahme }))
   } catch (first) {
-    const anyDone = (stopOf(t, sid).items || []).some((it) => it.status === 'gewechselt')
+    const anyDone = (stopOf(free, sid).items || []).some((it) => it.status === 'gewechselt')
     try {
-      return finishStop(t, sid, { ...base, outcome: anyDone ? 'teilweise' : 'nicht-durchgefuehrt', reason: base.reason || (signature ? '' : 'ohne Unterschrift (Webspace)') })
+      return keep(finishStop(free, sid, { ...base, outcome: anyDone ? 'teilweise' : 'nicht-durchgefuehrt', reason: base.reason || (signature ? '' : 'ohne Unterschrift (Webspace)') }))
     } catch {
       throw first
     }
@@ -321,7 +329,10 @@ export function applyWebEvents(tour, events = [], { now = new Date().toISOString
             if (stop.web?.event !== ev.id) notes.push({ id: ev.id, stopId: ev.stopp, reason: 'Der Stopp war schon abgeschlossen; nur die Fotos wurden übernommen.' })
           } else {
             t = applyFinish(t, ev, { by: who, photos })
-            t = patchStop(t, ev.stopp, (s) => ({ ...s, web: { event: ev.id, at: new Date((ev.eingang || ev.zeit) * 1000).toISOString() }, updatedAt: now }))
+            // Pflichtfoto fehlt (ältere Fahrerseite bzw. Foto am Webspace verloren): übernommen, aber vermerkt
+            const noPhoto = photoRule(t.photoRule) !== 'nie' && !!photoProblem(stopOf(t, ev.stopp), t.photoRule)
+            t = patchStop(t, ev.stopp, (s) => ({ ...s, web: { event: ev.id, at: new Date((ev.eingang || ev.zeit) * 1000).toISOString(), ...(noPhoto ? { fotoPflicht: true } : {}) }, updatedAt: now }))
+            if (noPhoto) notes.push({ id: ev.id, stopId: ev.stopp, reason: 'Ohne Pflichtfoto abgeschlossen (Fahrerseite am Webspace).' })
           }
           if (lost) {
             // Foto am Webspace nicht mehr da (404): vermerken statt die ganze Abholung anzuhalten

@@ -422,6 +422,24 @@
     zeigeAusgang()
   }
 
+  // Fotopflicht wie am Webspace (foto_pflicht_fehlt): '' oder 'foto_pflicht' bzw. 'foto_ausnahme'
+  const fotoPflichtFehlt = (form, regel, felder, fotos) => {
+    if (regel === 'immer') return fotos.length ? '' : 'foto_pflicht'
+    if (regel !== 'ausnahme') return ''
+    const mit = new Set(fotos.map((f) => f.lid))
+    const ergebnis = new Map()
+    let ausnahme = ''
+    for (const [k, v] of felder) {
+      const x = /^ergebnis\[(.+)\]$/.exec(k)
+      if (x) ergebnis.set(x[1], v)
+      if (k === 'ausnahme') ausnahme = v
+    }
+    const lps = [...form.querySelectorAll('[data-mww-pl]')].map((el) => el.dataset.mwwPl)
+    for (const [lid, v] of ergebnis) if (v === 'nicht-moeglich' && !mit.has(lid)) return 'foto_ausnahme'
+    const offen = lps.some((lid) => !ergebnis.has(lid))
+    return offen && ausnahme && !fotos.length ? 'foto_ausnahme' : ''
+  }
+
   // Formulare (Tour starten, Stopp abschließen): mit Skript senden, ohne Netz in den Ausgang
   for (const form of wurzel.querySelectorAll('form[data-mww-meldung]')) {
     form.addEventListener('submit', async (ev) => {
@@ -438,6 +456,14 @@
       const felder = []
       for (const [k, v] of new FormData(form)) if (typeof v === 'string') felder.push([k, v])
       const m = { id, tour: TOUR, stopp, art, felder, fotos: stopp && !problem ? fotosVon(stopp) : [], ziel: form.getAttribute('action') }
+      // Fotopflicht schon vor dem Senden prüfen (ohne Netz prüft der Webspace erst später – dann ginge der Abschluss verloren)
+      if (art === 'abschluss') {
+        const fehlt = fotoPflichtFehlt(form, form.dataset.mwwFotoregel || 'nie', felder, m.fotos)
+        if (fehlt) {
+          meldeFehler(form, T[fehlt] || '')
+          return
+        }
+      }
       form.dataset.laeuft = '1'
       const knopf = form.querySelector('button[type=submit]')
       const vorher = knopf?.textContent

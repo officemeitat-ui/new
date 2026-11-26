@@ -299,3 +299,18 @@ test('Problem gemeldet am Webspace → Meldung am Stopp (auch nach dem Abschluss
   const again = applyWebEvents({ ...r.tour, webspace: { ...r.tour.webspace, applied: [] } }, [problem()], { now: NOW })
   assert.equal(again.tour.stops[0].reports.length, 2)
 })
+
+test('Fotopflicht: an die Fahrerseite als fotoRegel; Abschluss vom Webspace ohne Pflichtfoto wird übernommen und vermerkt', () => {
+  const t0 = { ...tour(), photoRule: 'immer' }
+  assert.equal(webTourPayload(t0, { hash: HASH, name: 'Ivo Beispiel', lang: 'tr' }).fotoRegel, 'immer')
+  assert.equal('fotoRegel' in webTourPayload(tour(), { hash: HASH, name: 'Ivo Beispiel', lang: 'tr' }), false)
+  const r = applyWebEvents(t0, [abschluss({ fotos: [] })], { now: NOW })
+  assert.deepEqual(r.skipped, [], 'nicht mehr abgelehnt')
+  assert.ok(isFinal(r.tour.stops[0]))
+  assert.equal(r.tour.photoRule, 'immer', 'Regel bleibt an der Tour')
+  assert.equal(r.tour.stops[0].web.fotoPflicht, true)
+  assert.deepEqual(r.notes.map((n) => n.reason), ['Ohne Pflichtfoto abgeschlossen (Fahrerseite am Webspace).'])
+  const ok = applyWebEvents(t0, [abschluss()], { now: NOW })
+  assert.equal(ok.tour.stops[0].web.fotoPflicht, undefined)
+  assert.deepEqual(ok.notes, [])
+})

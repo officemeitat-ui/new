@@ -2,7 +2,9 @@
 // PHP-Server mit eigenem Ordner (MATTEN_ORDNER): Tour über die Schnittstelle wie aus der App übertragen, am Handy
 // (390 px) den Stopp öffnen, „Problem melden“ ohne Auswahl (Fehler), mit Art, Liegeplatz und Text (gesendet, steht am
 // Stopp), ohne Netz (wartet im Gerät, wird nachgesendet); die App holt die Meldungen ab und legt sie am Stopp an
-// (applyWebEvents). Der Abschluss des Stopps bleibt davon unberührt. Port 19878.
+// (applyWebEvents). Der Abschluss des Stopps bleibt davon unberührt.
+// Fotopflicht „immer“ (an der Tour): Hinweis am Stopp; Abschluss ohne Foto abgelehnt, auch ohne Netz (nichts im Ausgang);
+// mit Foto angenommen, die App übernimmt den Abschluss mit dem Foto. Port 19878.
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -30,7 +32,7 @@ try {
   const placements = [['lpgac1', 'GAC Schuhkontrolle'], ['lpterm2', 'Terminal Windfang']].map(([id, name]) => ({ id, objectId: 'o1', customerId: cust.id, customer: cust, name, active: true, mats: [{ ...mat, qty: 1 }], intervalDays: 14, startDate: DAY, rule: 'rhythmus' }))
   const objects = [{ id: 'o1', name: 'Terminal 1', address: 'Innsbrucker Bundesstraße 95, 5020 Salzburg', lat: 47.79, lon: 13.0 }]
   const stops = stopsFromJobs({ jobs: placements.map((p) => ({ key: `${p.id}:${DAY}`, placementId: p.id, due: DAY, status: 'geplant' })), placements, objects, date: DAY, customers: [cust] })
-  const tour = withWebspace({ schema: 1, id: 'mtprob00000001', date: DAY, driverId: 'e7', driverName: 'Ivo Beispiel', status: 'freigegeben', order: stops.map((s) => s.id), stops, route: {} }, { hash: HASH, name: 'Ivo Beispiel', lang: 'de' })
+  const tour = withWebspace({ schema: 1, id: 'mtprob00000001', date: DAY, driverId: 'e7', driverName: 'Ivo Beispiel', status: 'freigegeben', photoRule: 'immer', order: stops.map((s) => s.id), stops, route: {} }, { hash: HASH, name: 'Ivo Beispiel', lang: 'de' })
   const api = async (aktion, body) => {
     const r = await fetch(`http://127.0.0.1:${PORT}/mattentour.php?aktion=${aktion}`, { method: body ? 'POST' : 'GET', headers: { 'X-Schluessel': KEY, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
     return { status: r.status, json: await r.json().catch(() => null) }
@@ -86,6 +88,35 @@ try {
   check('App: Stopp unverändert offen', res.tour.stops[0].status === 'geplant', res.tour.stops[0].status)
   r = await api('uebernommen', { ids: res.done })
   check('Übernommen gemeldet', r.status === 200 && ((await api('meldungen')).json?.meldungen || []).length === 0)
+
+  // ------------------------------------------------ Fotopflicht beim Abschluss
+  await page.reload()
+  const st = page.locator(`section[data-mww-teil="${sid}"]`)
+  check('Hinweis „Pflicht: … mindestens ein Foto“', /Pflicht: an diesem Stopp mindestens ein Foto/.test(await st.textContent()))
+  const form = st.locator('form[data-mww-stopp]')
+  // die Auswahlfelder sind als große Knöpfe (Label) gestaltet: wie ein Tippen darauf
+  for (const lid of ['lpgac1', 'lpterm2']) await form.locator(`input[name="ergebnis[${lid}]"][value=gewechselt]`).evaluate((el) => el.click())
+  await form.locator('input[name=ohne]').evaluate((el) => el.click())
+  await form.locator('input[name=ohne_grund]').fill('niemand vor Ort')
+  await ctx.setOffline(true)
+  await form.locator('button[type=submit]').click()
+  await page.waitForFunction((s) => !document.querySelector(`section[data-mww-teil="${s}"] form[data-mww-stopp] [data-mww-fehler]`).hidden, sid)
+  check('Ohne Foto (ohne Netz): „Foto fehlt“, nichts im Ausgang', /Foto fehlt: an jedem Stopp/.test(await form.locator('[data-mww-fehler]').textContent()) && (await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes('ausgang')).map((k) => localStorage.getItem(k)).join(''))).indexOf('abschluss') < 0)
+  await ctx.setOffline(false)
+  // am Webspace selbst (ohne Skript-Prüfung): 400
+  const fd = new FormData()
+  for (const [k, v] of Object.entries({ p: CODE, art: 'abschluss', tour: tour.id, stopp: sid, meldung: 'abcdef0123456789abcd', zeit: String(Date.now()), 'ergebnis[lpgac1]': 'gewechselt', 'ergebnis[lpterm2]': 'gewechselt', ohne: '1', ohne_grund: 'niemand vor Ort' })) fd.append(k, v)
+  const raw = await fetch(`http://127.0.0.1:${PORT}/mattentour.php?aktion=meldung`, { method: 'POST', body: fd, headers: { Accept: 'application/json' } })
+  check('Webspace lehnt Abschluss ohne Pflichtfoto ab (400)', raw.status === 400 && /Foto fehlt/.test((await raw.json()).fehler || ''))
+  const jpeg = Buffer.from(await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 64; c.height = 48; const x = c.getContext('2d'); x.fillStyle = '#39c'; x.fillRect(0, 0, 64, 48); const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.8)); return [...new Uint8Array(await b.arrayBuffer())] }))
+  await form.locator('input[data-mww-foto="lpgac1"]').setInputFiles({ name: 'matte.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await page.waitForFunction((s) => document.querySelectorAll(`section[data-mww-teil="${s}"] [data-mww-fotos="lpgac1"] img`).length > 0, sid)
+  await Promise.all([page.waitForURL(/gesendet=abschluss/), form.locator('button[type=submit]').click()])
+  events = (await api('meldungen')).json?.meldungen || []
+  const fin = events.find((m) => m.art === 'abschluss')
+  check('Mit Foto: Abschluss angenommen, Foto dabei', !!fin && (fin.fotos || []).length === 1, JSON.stringify(fin))
+  const res2 = applyWebEvents(res.tour, events, { now: new Date().toISOString() })
+  check('App übernimmt den Abschluss (ohne Vermerk „ohne Pflichtfoto“)', res2.tour.stops[0].status === 'abgeschlossen' && !res2.tour.stops[0].web?.fotoPflicht && res2.skipped.length === 0, JSON.stringify({ s: res2.tour.stops[0].status, sk: res2.skipped }))
   await ctx.close()
 } catch (err) {
   check('Ablauf ohne Ausnahme', false, String(err?.stack || err).slice(0, 900))
