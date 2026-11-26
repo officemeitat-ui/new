@@ -11,7 +11,8 @@ import { AQL_VALUES, attention, DEFECT_DEFAULTS, drawSample, emptyQualitaet, eva
 import { applySuggestion, checkFotoPruefung, fotoPruefungRequest } from '../../core/qualitaet-ki.js'
 import { toCSV } from '../../core/reports.js'
 import { aqlText, levelText, qualitaetDocument, qualitaetPdfName } from '../../export/qualitaet-pdf.js'
-import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
+import { suggestCleaners } from '../../core/mitarbeiterakte.js'
+import { app, canEdit, closeModal, computeRange, confirmStep, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { lineChart, tableView } from '../kpi-charts.js'
 import { openCompose } from '../mailer.js'
 import { registerTodo } from '../modals/todo.js'
@@ -644,6 +645,32 @@ function startMeasurement() {
   renderNow()
 }
 
+// ---------------------------------------------------------------- Gereinigt von (Mitarbeiterakte)
+
+/** Wer laut Plan dort gereinigt hat (letzter Einsatz bis zur Messung, höchstens 7 Tage zurück); ohne Einsicht in den Plan leer. */
+function cleanersOf(m) {
+  if (app.access && !app.access.sees('planung')) return []
+  return memo(app.cur, `qm-cleaners:${m.id}`, () => {
+    try {
+      const from = addDays(m.date, -7)
+      const c = computeRange(from, m.date)
+      const list = []
+      for (const i of c.instances) if (i.objectId === m.objectId && i.date >= from && i.date <= m.date && i.status !== 'cancelled') for (const a of c.state.assigned(i.key)) list.push({ date: i.date, objectId: i.objectId, employeeId: a.employeeId })
+      return suggestCleaners(list, m.objectId, m.date)
+    } catch {
+      return []
+    }
+  })
+}
+
+/** Auswahl „gereinigt von“ für einen Raum mit Mangel: wer laut Plan dort war zuerst. */
+function cleanedByField(m, room, i, ed) {
+  const sug = cleanersOf(m)
+  const emps = app.data.employees.filter((e) => !e.exitDate || e.exitDate >= m.date).sort((a, b) => Number(sug.includes(b.id)) - Number(sug.includes(a.id)) || a.name.localeCompare(b.name, 'de'))
+  const opts = emps.map((e) => `<option value="${esc(e.id)}" ${room.cleanedBy === e.id ? 'selected' : ''}>${esc(e.name)}${sug.includes(e.id) ? ' (laut Plan)' : ''}</option>`).join('')
+  return `<label class="field qm-cleaned"><span>Gereinigt von (für die Mitarbeiterakte)</span><select data-change="qm-cleaned" data-room="${i}" ${ed ? '' : 'disabled'}><option value="">– nicht zuordnen –</option>${opts}</select></label>`
+}
+
 // ---------------------------------------------------------------- Bewerten (am Handy)
 
 function rateModal(c, mo) {
@@ -683,6 +710,7 @@ function rateModal(c, mo) {
       <p class="qm-room-state">${rr.rated ? (rr.ok ? '<span class="pill ok">in Ordnung</span>' : `<span class="pill error">nicht in Ordnung</span> <span class="muted">${plural(rr.points, 'Fehlerpunkt', 'Fehlerpunkte')}</span>`) : '<span class="pill na">nicht bewertet</span>'}</p>
       ${ed ? kiBlock(mo, m, i, room) : ''}
       <div class="qm-items">${items}</div>
+      ${room.items.some((it) => it.state === 'mangel') ? cleanedByField(m, room, i, ed) : ''}
       <p class="qm-running muted small">Bisher: ${plural(res.bad, 'Raum', 'Räume')} nicht in Ordnung (zulässig ${res.ac ?? '–'}), Kennzahl ${pct(res.score)} · ${m.rooms.filter((x) => x.checked).length} von ${m.rooms.length} Räumen angesehen</p>`,
     foot: `<button class="btn" data-action="qm-room-prev" ${i === 0 ? 'disabled' : ''}>${ICON.left} Zurück</button><div class="actions">${ed ? `<button class="btn primary" data-action="qm-room-next">${last ? 'Raum fertig, abschließen' : 'Raum fertig, weiter'} ${ICON.right}</button>` : ''}</div>`,
   })
@@ -1172,6 +1200,11 @@ registerActions(
       if (!it) return
       it.state = el.dataset.s
       if (it.state !== 'mangel') Object.assign(it, { defects: [], note: '' })
+      // erster Mangel im Raum: wer laut Plan allein dort war, ist vorgewählt (änderbar)
+      if (it.state === 'mangel' && room.cleanedBy === undefined && m) {
+        const sug = cleanersOf(m)
+        room.cleanedBy = sug.length === 1 ? sug[0] : ''
+      }
       persist()
       renderModal()
       if (m && it.state === 'mangel') document.querySelector(`#modal-root [data-k="${el.dataset.k}"][data-change="qm-defect"]`)?.focus({ preventScroll: true })
@@ -1182,6 +1215,13 @@ registerActions(
       const it = room?.items[Number(el.dataset.k)]
       if (!it) return
       it.defects = el.checked ? [...new Set([...it.defects, el.value])] : it.defects.filter((x) => x !== el.value)
+      persist()
+    },
+    'qm-cleaned': (el) => {
+      const { m } = rateRoom()
+      const room = m?.rooms[Number(el.dataset.room)]
+      if (!room) return
+      room.cleanedBy = el.value
       persist()
     },
     'qm-note': (el) => {

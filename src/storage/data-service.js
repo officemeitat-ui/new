@@ -21,6 +21,7 @@
 //                                     Bedienungsanleitungen, Rechnungen und Prüfprotokolle unter geraete/dateien/)
 //   regie/regie.json                  Regieberichte (Sonderleistungen mit Unterschrift; Fotos und PDF unter regie/nachweise/)
 //   qualitaet/qualitaet.json          Qualitätsmessung je Objekt (Fotos und Berichte unter qualitaet/nachweise/)
+//   mitarbeiterakte/akte.json         Mitarbeiterakte: Vermerke und Gespräche (PDFs und Fotos je Person im selben Ordner)
 //   arbeitsschutz/arbeitsschutz.json  Arbeitsschutz: Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter
 //                                     unter arbeitsschutz/dokumente/; die Angaben zu Arbeitsstoffen stehen am Artikel)
 //   zufriedenheit/zufriedenheit.json  Kundenzufriedenheit: Umfrage-Runden, Antworten aus dem Kundenbereich, Einstellungen
@@ -115,6 +116,8 @@ export const MODULE_DOCS = {
   regie: { path: 'regie/regie.json', empty: () => ({ reports: [], settings: {} }) },
   // Qualitätsmessung: leerer Inhalt wie emptyQualitaet (core/qualitaet.js; test/qualitaet.test.js vergleicht)
   qualitaet: { path: 'qualitaet/qualitaet.json', empty: () => ({ settings: {}, objects: [], measurements: [] }) },
+  // Mitarbeiterakte: leerer Inhalt wie emptyAkte (core/mitarbeiterakte.js; test/mitarbeiterakte.test.js vergleicht)
+  akte: { path: 'mitarbeiterakte/akte.json', empty: () => ({ entries: [], talks: [], settings: {} }) },
   // Arbeitsschutz: leerer Inhalt wie emptyArbeitsschutz (core/arbeitsschutz.js; test/arbeitsschutz.test.js vergleicht)
   arbeitsschutz: { path: 'arbeitsschutz/arbeitsschutz.json', empty: () => ({ instructions: [], evaluations: [], settings: {} }) },
   // Kundenzufriedenheit: leerer Inhalt wie emptyZufriedenheit (core/zufriedenheit.js; test/zufriedenheit.test.js vergleicht)
@@ -211,10 +214,10 @@ export function dataRights(access) {
   // Ordner der App und bekommen Mitteilungen über „Mein Plan“)
   const appRole = () => Object.keys(MODULES).some((m) => !TOOL_MODULES.includes(m) && access.sees(m))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'verwaltung', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten', 'vertrieb'), () => edits('verwaltung', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'verwaltung', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten', 'vertrieb', 'akte'), () => edits('verwaltung', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“) und die Geräte
     // (Ausgabe an eine Person, verantwortliche Person)
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'verwaltung', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt', 'geraete'), () => edits('stammdaten', 'verwaltung', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'verwaltung', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt', 'geraete', 'akte'), () => edits('stammdaten', 'verwaltung', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     // „abwesend von–bis“ ohne Grund: geschrieben, wo die Abwesenheiten gepflegt werden
@@ -243,7 +246,10 @@ export function dataRights(access) {
     // der Rechnungsentwurf trägt den Bericht eingefroren als Beilage (source.beilage in fakturierung.json)
     ['regie/', () => sees('regie'), () => edits('regie')],
     // Qualitätsmessung: Datei, Fotos der Mängel und Berichte (qualitaet/nachweise/…); lesen auch ohne Schreibrecht
-    ['qualitaet/', () => sees('qualitaet'), () => edits('qualitaet')],
+    ['qualitaet/', () => sees('qualitaet', 'akte'), () => edits('qualitaet')],
+    // Mitarbeiterakte: Vermerke, Gespräche, PDFs und Fotos je Person (mitarbeiterakte/<Name>_<ID>/); eigener Ordner, damit
+    // SharePoint ihn getrennt schützen kann. Liest auch die Qualitätsmessung (Vermerke aus „gereinigt von“)
+    ['mitarbeiterakte/', () => sees('akte'), () => edits('akte')],
     // Arbeitsschutz: Sicherheitsdatenblätter lädt auch das Lager hoch (Arbeitsstoffe), eigener Unterordner zuerst;
     // Datei, Betriebsanweisungen und Evaluierung (mit PDFs unter arbeitsschutz/dokumente/) nur mit Recht auf den Arbeitsschutz
     ['arbeitsschutz/dokumente/sdb/', () => sees('arbeitsschutz', 'arbeitsstoffe'), () => edits('arbeitsschutz', 'arbeitsstoffe')],
@@ -313,6 +319,7 @@ export const FOLDERS = [
   ['geraete', 'Geräte & Maschinen: Inventar, Prüfungen, Reparaturen, Ausgabe (mit Fotos, Anleitungen, Protokollen)', MODULE_DOCS.geraete.path],
   ['regie', 'Regieberichte: Sonderleistungen mit Unterschrift, Fotos und PDF', MODULE_DOCS.regie.path],
   ['qualitaet', 'Qualitätsmessung je Objekt (Raumgruppen, Messungen, Fotos der Mängel, Berichte als PDF)', MODULE_DOCS.qualitaet.path],
+  ['mitarbeiterakte', 'Mitarbeiterakte: Vermerke, Gespräche, PDFs und Fotos je Person (eng schützen: nur Personalverwaltung)', MODULE_DOCS.akte.path],
   ['arbeitsschutz', 'Arbeitsschutz: Betriebsanweisungen, Evaluierung, PDFs unter dokumente/', MODULE_DOCS.arbeitsschutz.path],
   ['arbeitsschutz/dokumente/sdb', 'Sicherheitsdatenblätter (auch das Lager lädt sie hoch)', 'arbeitsschutz/dokumente/sdb/sdb.pdf'],
   ['zufriedenheit', 'Kundenzufriedenheit: Umfrage-Runden, Antworten aus dem Kundenbereich, Auswertung', MODULE_DOCS.zufriedenheit.path],

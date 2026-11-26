@@ -426,9 +426,28 @@ lazy(BUERO, {
   actions: `qm-tab qm-filter qm-reset qm-goto qm-show qm-file qm-pdf qm-csv qm-complaints qm-groups-open qm-groups-redraw qm-groups-live qm-settings-open
     qm-group-add qm-group-del qm-raumbuch qm-raumbuch-file qm-groups-save qm-groups-delete qm-set-add qm-set-del qm-settings-reset qm-settings-save
     qm-measure-open qm-plan-redraw qm-plan-draw qm-plan-seed qm-plan-room qm-plan-del qm-plan-add qm-plan-start qm-rate-open qm-room qm-room-prev
-    qm-room-next qm-item qm-defect qm-note qm-photo qm-photo-del qm-ki-photo qm-ki-run qm-ki-take qm-finish-save qm-delete qm-mail qm-appt`,
+    qm-room-next qm-item qm-defect qm-cleaned qm-note qm-photo qm-photo-del qm-ki-photo qm-ki-run qm-ki-take qm-finish-save qm-delete qm-mail qm-appt`,
   hints: true,
   todo: ['qualitaet'],
+})
+
+// mitarbeiterakte.js: Vermerke je Person (Qualitätsmessung „gereinigt von“, von Hand mit Fotos), Mitarbeitergespräch
+lazy(BUERO, {
+  views: [
+    {
+      id: 'akte',
+      order: 207,
+      label: 'Mitarbeiterakte',
+      group: 'stamm',
+      module: 'akte',
+      icon: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/>',
+      noWeek: true,
+      text: 'Vermerke, Objektkontrolle, Mitarbeitergespräch',
+    },
+  ],
+  modals: 'ak-person ak-entry ak-talk ak-settings',
+  actions: 'ak-search ak-only ak-open ak-file ak-entry-pdf ak-talk-pdf ak-entry-open ak-entry-save ak-entry-del ak-talk-open ak-talk-save ak-settings-open ak-settings-save ak-import',
+  todo: ['mitarbeitergespraech'],
 })
 
 // matten-uebersicht.js, matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js, matten-lieferscheine.js,

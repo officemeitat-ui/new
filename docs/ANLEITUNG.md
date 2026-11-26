@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 437 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 438 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (73)
+- [Verwaltung](#verwaltung) (74)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4966,6 +4966,23 @@ Mitarbeitende öffnen die Unterweisung über ihren Link von „Plan am Handy“,
 > Tipp: Inhalt mit eurer Evaluierung und der Sicherheitsfachkraft abstimmen.
 
 *Wer Unterweisungen & Fristen bearbeiten darf*
+
+### Mitarbeiterakte und Mitarbeitergespräch
+
+*In der App: Mitarbeiterakte*
+
+Je Person sammelt die Akte Vermerke: aus der Qualitätsmessung (bei einem Raum mit Mangel „gereinigt von“ wählen) oder von Hand mit Fotos. Jeder Vermerk kommt als PDF in den Ordner der Person in SharePoint. Ab 3 offenen Vermerken erinnert „Zu erledigen“ an das Gespräch; dort hakst du die besprochenen ab, mit Ergebnis und Vereinbarung.
+
+1. Bei der Qualitätsmessung im Raum mit Mangel „Gereinigt von“ wählen (laut Plan vorgeschlagen).
+2. Oder „Mitarbeiterakte“ → „Vermerk eintragen“ mit Objekt, Text und Fotos.
+3. Bei „Mitarbeitergespräch fällig“ „Gespräch führen“: Vermerke ankreuzen, Ergebnis und Vereinbarung eintragen.
+4. Das Protokoll (PDF) ausdrucken und von beiden unterschreiben lassen.
+
+> Tipp: Sachlich festhalten, was festgestellt wurde; Lob und Notizen zählen nicht fürs Gespräch.
+> Tipp: Die Akte sieht nur, wer die Personalverwaltung sieht; die Person hat ein Recht auf Auskunft.
+> Tipp: Gibt es einen Betriebsrat, die Akte mit ihm abstimmen.
+
+*Vollzugriff und Personalverwaltung*
 
 ### Zur Unterweisung auffordern (WhatsApp)
 

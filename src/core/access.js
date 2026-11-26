@@ -55,6 +55,8 @@ export const MODULES = {
   // Mitteilungen an Mitarbeitende mit Lesebestätigung (verfassen, übersetzen, Übersicht); lesen und bestätigen kann
   // jede Person die eigenen, ohne dieses Modul (Postfach der Konten bzw. „Mein Plan“)
   mitteilungen: 'Mitteilungen',
+  // Mitarbeiterakte: Vermerke (z. B. aus der Objektkontrolle) und Mitarbeitergespräche; eng: Personalverwaltung, Vollzugriff
+  akte: 'Mitarbeiterakte',
   // Posteingang: E-Mails und Belege erkennen und als Entwurf übergeben. Nur Vollzugriff (Büro): Im Postfach landet
   // alles (Krankmeldungen, Bewerbungen, Rechnungen, Kündigungen); eigene Rollen über config.json → access.roles
   posteingang: 'Posteingang',
@@ -93,7 +95,7 @@ export const DEFAULT_ROLES = {
   // Bewerbungen bis zur Zusage, Mitarbeitende anlegen (Stammdaten), Unterweisungen und Gesprächstermine; das
   // Schlüsselbuch nur lesen (Ausgabe und Rückgabe in der Checkliste sehen, Quittung drucken)
   // Mitteilungen an Mitarbeitende: verfassen, übersetzen, Lesebestätigungen und Nachweis
-  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel', 'mitteilungen', 'aufgaben'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'mitteilungen', 'aufgaben'] },
+  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel', 'mitteilungen', 'akte', 'aufgaben'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'mitteilungen', 'akte', 'aufgaben'] },
   // Geräte & Maschinen: Objektleitung und Lager & Einkauf pflegen die Geräte (Prüfungen, Reparaturen, Ausgabe)
   // Vertrieb: Objektleitung nimmt Anfragen auf und besichtigt; Kalkulation, Angebote und Kunden bleiben beim Büro bzw.
   // bei der Fakturierung (Übergabe im Fall)

@@ -151,6 +151,7 @@ export function storeChoice(store, key, list, defaults) {
  */
 export const SHORT_LABELS = {
   week: 'Woche',
+  akte: 'Akte',
   coverage: 'Vertretung',
   sheet: 'Zettel',
   assistenz: 'Assistenz',
