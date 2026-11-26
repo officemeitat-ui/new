@@ -3185,6 +3185,13 @@ a.btn { text-decoration: none; }
 .mwu-week tr.mwu-now th, .mwu-week tr.mwu-now td { font-weight: 700; }
 .mwu-day { border: 0; background: none; padding: 4px 0; min-height: 32px; color: var(--fg); font: inherit; cursor: pointer; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
 .mwu-list { margin-top: 16px; }
+.mwu-reports { margin-top: 16px; }
+.mwu-report-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mwu-report { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--card-border); border-left: 4px solid var(--warn); border-radius: var(--radius-card); min-width: 0; }
+.mwu-report > div:first-child { min-width: 0; flex: 1 1 16rem; overflow-wrap: anywhere; }
+.mwf-reports { margin-top: 16px; }
+.mwf-report-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.mwf-report-list li { padding: 8px 10px; border: 1px solid var(--card-border); border-radius: var(--radius-card); background: var(--surface); overflow-wrap: anywhere; }
 .mwu-list > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 .mwu-list > header h3 { margin: 0; }
 .mwu-rows { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 0; }

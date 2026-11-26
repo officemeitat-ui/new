@@ -46,7 +46,7 @@ import { registerTodo } from '../modals/todo.js'
 import { dayAt, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
 import { startWebPolling } from '../matten-webspace.js'
 import { inTourText, toursReady } from './matten-planung.js'
-import { ensureOverviewTours, mattenState, publish as publishOverview } from './matten-uebersicht.js'
+import { ensureOverviewTours, mattenState, openDriverReports, publish as publishOverview } from './matten-uebersicht.js'
 
 const MODULE = 'matten'
 const KEY = 'mattenJobs'
@@ -764,6 +764,9 @@ registerTodo({
     const notDone = st.notDone.filter((x) => !x.planned)
     if (notDone.length) out.push({ id: `nicht:${notDone.map((x) => x.key).join(',')}`, kind: 'nicht', list: notDone })
     if (st.stale.length) out.push({ id: `alt:${st.stale.map((t) => `${t.id}@${t.status}`).join(',')}`, kind: 'alt', list: st.stale })
+    // Meldungen der Fahrer aus dem Stopp (Schaden, Beschwerde …), weder Reklamation noch erledigt
+    const reports = openDriverReports(today)
+    if (reports.length) out.push({ id: `meldung:${reports.map((r) => r.id).join(',')}`, kind: 'meldung', list: reports })
     if (a.missing.length) out.push({ id: `plan:${a.until}:${a.missing.length}`, kind: 'plan', count: a.missing.length, until: a.until })
     // Tourenplanung: offene Einsätze bis zum nächsten Arbeitstag ohne freigegebene Tour
     const soon = untouredSoon(jobsAll(), today)
@@ -787,6 +790,13 @@ registerTodo({
                   .map((y) => `${y.placementName || 'Liegeplatz'} (${y.objectName || 'Objekt'}) am ${short(y.date)}: ${y.reason || 'nicht durchgeführt'}`)
                   .join(' · '),
               )}${x.list.length > 4 ? ' …' : ''}</span></div><button class="btn small primary" data-action="mwu-goto" data-card="nicht">Öffnen</button></div>`
+          : x.kind === 'meldung'
+            ? `<div class="todo-item"><span class="flag warning">${x.list.length}</span><div class="todo-text"><strong>Meldungen der Fahrer (${x.list.length})</strong><br><span class="muted">${esc(
+                x.list
+                  .slice(0, 4)
+                  .map((r) => `${r.kindLabel}: ${[r.customerName, r.placementName].filter(Boolean).join(', ') || 'Stopp'}`)
+                  .join(' · '),
+              )}${x.list.length > 4 ? ' …' : ''}</span></div><button class="btn small primary" data-action="mwu-reports-goto">Öffnen</button></div>`
           : x.kind === 'alt'
             ? `<div class="todo-item"><span class="flag warning">${x.list.length}</span><div class="todo-text"><strong>Touren vergangener Tage nicht abgeschlossen (${x.list.length})</strong><br><span class="muted">${esc(
                 x.list

@@ -14,8 +14,9 @@ import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../c
 import { mergeJobs } from '../../core/matten-einsaetze.js'
 import { emptyMatten, upgradeMatten } from '../../core/matten.js'
 import { loadLabel, tourYears } from '../../core/matten-touren.js'
+import { complaintDraft, markReportDone, openReports, reportsOf } from '../../core/matten-meldungen.js'
 import { mattenInvoices, mattenKpi, mattenStateOf, overviewOf, overviewRights, stopText, tourResults } from '../../core/matten-uebersicht.js'
-import { ACTIONS, app, canEdit, closeModal, memo, openModal, persist, registerActions, registerModal, registerView, render, renderNow, toast } from '../context.js'
+import { ACTIONS, app, canEdit, closeModal, ensureAction, memo, openModal, persist, registerActions, registerModal, registerView, render, renderNow, toast } from '../context.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { invalidateTodo } from '../modals/todo.js'
 import { checked, esc, ICON, menu, modalFrame, val } from '../shared.js'
@@ -71,6 +72,36 @@ onToursChanged(() => {
   publish()
   if (['home', VIEW, 'kennzahlen'].includes(app.ui.view) && !app.ui.modal) renderNow()
 })
+
+// ---------------------------------------------------------------- Meldungen der Fahrer (core/matten-meldungen.js)
+
+/** Reklamationen, wenn gelesen (sonst null: dann zählt nur „erledigt“ in matten.json). */
+const complaintsRead = () => (app.data.reklamationen ? app.data.reklamationen.items || [] : null)
+/** Offene Meldungen der Fahrer aus den gelesenen Touren (für Übersicht und „Zu erledigen“). */
+export function openDriverReports(today = todayISO()) {
+  const years = overviewYears(today)
+  if (!loadedYears(years)) return []
+  const handled = doc().reportsHandled || {}
+  const complaints = complaintsRead()
+  return memo(app.cur, `mwu:rep:${toursVersion}:${Object.keys(handled).length}:${complaints ? complaints.length : '-'}`, () => openReports(tourStore().tours(), { handled, complaints }))
+}
+
+function reportsBlock() {
+  const list = openDriverReports()
+  if (!list.length) return ''
+  const ed = editable()
+  const mayComplaint = canEdit('reklamationen') && !app.readOnly
+  const rows = list
+    .map((r) => {
+      const where = [r.customerName, r.objectName, r.placementName].filter(Boolean).join(' · ')
+      const when = `${short(r.date)}${r.at ? `, ${new Date(r.at).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Vienna' })} Uhr` : ''}`
+      return `<li class="mwu-report"><div><strong>${esc(r.kindLabel)}</strong>${where ? ` · ${esc(where)}` : ''}${r.text ? `<br>${esc(r.text)}` : ''}<br><span class="muted">${esc(r.by || r.driverName || 'Fahrer')}, ${esc(when)}${r.photos.length ? ` · ${esc(plural(r.photos.length, 'Foto', 'Fotos'))} am Liegeplatz` : ''}</span></div>
+        <div class="actions">${mayComplaint ? `<button class="btn small primary" data-action="mwu-rep-complaint" data-id="${esc(r.id)}">Als Reklamation</button>` : ''}${ed ? `<button class="btn small" data-action="mwu-rep-done" data-id="${esc(r.id)}">Erledigt</button>` : ''}<button class="btn small ghost" data-action="mwu-tour" data-tour="${esc(r.tourId)}">Tour</button></div></li>`
+    })
+    .join('')
+  return `<section class="mwu-reports" id="mwu-reports" aria-label="Meldungen der Fahrer"><h3>Meldungen der Fahrer (${list.length} offen)</h3><ul class="mwu-report-list">${rows}</ul>
+    <p class="muted">Schaden, fehlende Matte, Beschwerde des Kunden: „Als Reklamation“ legt eine Reklamation zum Objekt an (Quelle „Mattenwechsel (Fahrer)“), „Erledigt“ ohne Reklamation.${mayComplaint ? '' : ' Reklamationen anlegen darf, wer die Reklamationen bearbeitet.'}</p></section>`
+}
 
 /** Touren, die dieses Gerät nicht speichern konnte (Fehler ohne Netzbezug, z. B. fehlendes Recht). */
 function tourErrors() {
@@ -251,6 +282,7 @@ function uebersichtView() {
     return `${head}<div class="banner welcome"><p><strong>Noch keine Liegeplätze.</strong> Die Übersicht zählt Einsätze, Touren und Lieferscheine des Mattenwechsels. Zuerst unter „Matten-Liegeplätze“ die Liegeplätze anlegen, dann im Kalender planen.</p><button class="btn" data-action="view" data-view="mw-liegeplaetze">Liegeplätze</button></div>`
   return `${head}${banners}
     <div class="mwu-grid"><div class="mwu-main">${tiles(o)}${stockLine(today)}</div><div class="mwu-side">${todayBlock(o)}${weekBlock(o)}</div></div>
+    ${reportsBlock()}
     ${listBlock(o)}`
 }
 
@@ -363,9 +395,22 @@ registerActions({
     await go({ view: VIEW, mwuList: card })
     document.getElementById('mwu-list')?.scrollIntoView?.({ block: 'start' })
   },
+  'mwu-reports-goto': async () => {
+    await go({ view: VIEW })
+    document.getElementById('mwu-reports')?.scrollIntoView?.({ block: 'start' })
+  },
   'mwu-list': (el) => {
     app.ui.mwuList = el.dataset.v || ''
     renderNow()
+  },
+  // Meldung des Fahrers als Reklamation (Modul Reklamationen, eigenes Recht; die Reklamation merkt sich die Meldung in ref)
+  'mwu-rep-complaint': async (el) => {
+    const r = reportsOf(tourStore()?.tours() || []).find((x) => x.id === el.dataset.id)
+    if (!r) return toast('Meldung nicht gefunden.')
+    const fn = await ensureAction('complaint-new')
+    if (!fn) return toast('Reklamationen anlegen darf, wer die Reklamationen bearbeitet.')
+    const pre = complaintDraft(r)
+    return fn({ dataset: { obj: pre.objectId, date: pre.date, prefill: JSON.stringify(pre) }, files: [] })
   },
   // eine Tour in „Matten-Touren“ öffnen (Fortschritt je Stopp, Korrektur)
   'mwu-tour': (el) => go({ view: 'mw-touren', mwfTour: el.dataset.tour || '', mwfStop: '' }),
@@ -396,6 +441,14 @@ registerModal('mwu-settings', settingsModal, { module: MODULE })
 registerActions(
   {
     'mwu-settings-open': () => openModal({ type: 'mwu-settings' }),
+    'mwu-rep-done': (el) => {
+      const d = doc()
+      d.reportsHandled = markReportDone(d.reportsHandled || {}, el.dataset.id, { now: nowIso(), by: user() })
+      persist()
+      invalidateTodo()
+      renderNow()
+      toast('Meldung erledigt.')
+    },
     'mwu-settings-save': () => {
       const tol = Number(val('mwu-tol'))
       if (!Number.isInteger(tol) || tol < 0 || tol > 14) return toast('Pünktlich bis: bitte 0 bis 14 Tage.')

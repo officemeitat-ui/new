@@ -3,7 +3,7 @@
 // App installieren (Startbildschirm).
 
 import { roleOptions } from '../core/access.js'
-import { app, canEdit, closeModal, moduleOf, onModalRender, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, sectionLabel, toast, visibleViews } from './context.js'
+import { app, canEdit, closeModal, keepModalInput, moduleOf, onModalRender, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, sectionLabel, toast, visibleViews } from './context.js'
 import { ABSENCE, accountKey, defaultSlots, leisteSlots, MAX_SLOTS, moveSlot, SEC, sectionLabels, setSlot, storeChoice, viewLabels } from './leiste.js'
 import { cleo } from './mascot.js'
 import { seasonOutfit } from './season.js'
@@ -23,7 +23,8 @@ const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.p
 
 let installPrompt = null
 export function watchDevice() {
-  phone?.addEventListener('change', () => renderNow())
+  // Handy gedreht bzw. Fenster schmaler/breiter: neu zeichnen, getippte Eingaben im offenen Dialog bleiben
+  phone?.addEventListener('change', () => keepModalInput(renderNow))
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
     installPrompt = e

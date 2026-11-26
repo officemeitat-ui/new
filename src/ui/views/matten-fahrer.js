@@ -44,9 +44,10 @@ import {
   toursFor,
   UNSIGNED_REASONS,
 } from '../../core/matten-fahrt.js'
+import { addReport, removeReport, REPORT_KINDS, reportProblem } from '../../core/matten-meldungen.js'
 import { loadList } from '../../core/matten-tour.js'
 import { navigationUrl } from '../../core/routing.js'
-import { app, canEdit, closeModal, openModal, registerActions, registerModal, registerUploadHook, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, confirmStep, openModal, registerActions, registerModal, registerUploadHook, registerView, renderModal, renderNow, toast } from '../context.js'
 import { openPhotoPath, rememberPhoto, shrinkPhoto } from '../matten-fotos.js'
 import { photoProblem, photoRuleHint } from '../../core/matten-fotos.js'
 import { onToursChanged, tourStore as sharedTourStore } from '../matten-tourablage.js'
@@ -367,7 +368,24 @@ function stopView(tour, stop) {
       ${work && photoRuleHint(tour.photoRule) ? `<p class="mwf-photo-rule">${ICON.camera} ${esc(photoRuleHint(tour.photoRule))}</p>` : ''}
     </section>
     ${blocks}
+    ${reportsBlock(tour, stop, work)}
     ${foot}`
+}
+
+/** Meldungen ans Büro am Stopp (core/matten-meldungen.js): Liste, „Problem melden“ (auch nach dem Abschluss). */
+function reportsBlock(tour, stop, work) {
+  const may = canWork(tour)
+  const list = stop.reports || []
+  if (!may && !list.length) return ''
+  const rows = list
+    .map((r) => {
+      const ask = app.ui.confirm === `mwf-report-del:${r.id}`
+      return `<li><strong>${esc(REPORT_KINDS[r.kind] || r.kind)}</strong>${r.placementName ? ` · ${esc(r.placementName)}` : ''}${r.text ? `<br>${esc(r.text)}` : ''}<br><span class="muted">${esc(localTime(r.at))} Uhr${r.by ? `, ${esc(r.by)}` : ''}</span>${work ? ` <button class="btn small ghost" data-action="mwf-report-del" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}" data-id="${esc(r.id)}">${ask ? 'Wirklich zurücknehmen?' : 'Zurücknehmen'}</button>` : ''}</li>`
+    })
+    .join('')
+  return `<section class="mwf-reports" aria-label="Meldungen ans Büro"><h3>Meldungen ans Büro</h3>${rows ? `<ul class="mwf-report-list">${rows}</ul>` : ''}
+    ${may ? `<button class="btn mwf-tap" data-action="mwf-report-open" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}">Problem melden</button>` : ''}
+    <p class="muted">Schaden, fehlende Matte, Beschwerde des Kunden: das Büro sieht die Meldung in der Matten-Übersicht. Ein Foto am Liegeplatz aufnehmen.</p></section>`
 }
 
 function placementBlock(tour, stop, p, i, work) {
@@ -505,6 +523,29 @@ function notModal(c, m) {
   })
 }
 registerModal('mwf-not', notModal, { module: MODULE })
+
+// ---------------------------------------------------------------- Dialog „Problem melden“
+
+function reportModal(c, m) {
+  const tour = tourOf(m.tour)
+  const stop = stopOf(tour, m.stop)
+  if (!stop) return ''
+  const pls = placementsOf(stop)
+  const kinds = Object.entries(REPORT_KINDS)
+    .map(([k, label], i) => `<label class="check mwf-choice"><input type="radio" name="mwf-rep-kind" value="${esc(k)}" id="mwf-rep-k-${i}" data-change="mwf-rep-field"${m.kind === k ? ' checked' : ''}><span>${esc(label)}</span></label>`)
+    .join('')
+  const plOptions = [['', pls.length === 1 ? pls[0].placementName || 'Liegeplatz' : '– ganzer Stopp –'], ...pls.map((p) => [p.placementId, p.placementName || 'Liegeplatz'])]
+  return modalFrame({
+    title: 'Problem melden',
+    subtitle: esc(stopTitle(stop)),
+    body: `<fieldset class="mwf-choices"><legend>Was ist passiert?</legend>${kinds}</fieldset>
+      <label class="field"><span>Liegeplatz</span><select id="mwf-rep-pl" data-change="mwf-rep-field">${plOptions.map(([v, l]) => `<option value="${esc(v)}"${(m.pl || (pls.length === 1 ? pls[0].placementId : '')) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="field"><span>Was genau?</span><textarea id="mwf-rep-text" rows="3" data-input="mwf-rep-field" placeholder="z. B. Rand eingerissen, Kunde möchte eine größere Matte">${esc(m.text || '')}</textarea></label>
+      <p class="note">Das Büro sieht die Meldung sofort und macht bei Bedarf eine Reklamation daraus. Ein Foto nimmst du am Liegeplatz auf.</p>`,
+    foot: `<div class="actions"><button class="btn mwf-tap" data-action="close-modal">Abbrechen</button><button class="btn primary mwf-tap" data-action="mwf-report">Melden</button></div>`,
+  })
+}
+registerModal('mwf-report', reportModal, { module: MODULE })
 
 // ---------------------------------------------------------------- Dialog „Stopp abschließen“ (P11)
 
@@ -669,6 +710,37 @@ registerActions(
       if (!reason) return toast('Bitte einen Grund wählen oder eintragen.')
       closeModal()
       change(m.tour, (t, o) => markNotPossible(t, m.stop, m.pl, reason, o))
+    },
+    'mwf-report-open': (el) => openModal({ type: 'mwf-report', ...ids(el) }),
+    // Eingaben im Dialog sofort merken (neu gezeichnet z. B. beim Drehen des Handys)
+    'mwf-rep-field': (el) => {
+      const m = app.ui.modal
+      if (m?.type !== 'mwf-report') return
+      m.kind = document.querySelector('input[name="mwf-rep-kind"]:checked')?.value || m.kind || ''
+      m.pl = document.getElementById('mwf-rep-pl')?.value ?? m.pl
+      // Tippen meldet sich kurz verzögert: wurde der Dialog inzwischen neu gezeichnet, gilt der Text des getippten Felds
+      const live = document.getElementById('mwf-rep-text')
+      if (el?.id === 'mwf-rep-text') {
+        m.text = el.value
+        if (live && live !== el && !live.value) live.value = m.text
+      } else if (live) m.text = live.value
+    },
+    'mwf-report': async () => {
+      const m = app.ui.modal
+      const kind = document.querySelector('input[name="mwf-rep-kind"]:checked')?.value || ''
+      const placementId = document.getElementById('mwf-rep-pl')?.value || ''
+      const text = document.getElementById('mwf-rep-text')?.value.trim() || ''
+      Object.assign(m, { kind, pl: placementId, text })
+      const problem = reportProblem({ kind, placementId, text })
+      if (problem) return toast(problem)
+      closeModal()
+      const next = await change(m.tour, (t, o) => addReport(t, m.stop, { kind, placementId, text, ...o }))
+      if (next) toast('Meldung ans Büro gespeichert.')
+    },
+    'mwf-report-del': (el) => {
+      if (!confirmStep(`mwf-report-del:${el.dataset.id}`)) return
+      const { tour, stop } = ids(el)
+      change(tour, (t, o) => removeReport(t, stop, el.dataset.id, o))
     },
     'mwf-note': (el) => {
       const { tour, stop, pl } = ids(el)

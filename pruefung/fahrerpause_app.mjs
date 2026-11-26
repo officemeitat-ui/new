@@ -35,6 +35,7 @@ try {
   const toursOf = () => [...SP.drive.items.keys()].filter((p) => p.includes('matten/touren/') && p.endsWith('.json')).map((p) => SP.json(p.replace(/^.*?matten\/touren\//, 'matten/touren/'))).filter((t) => t?.date === day)
 
   // ------------------------------------------------ 1. Einstellung
+  await O.page.waitForSelector('main [data-action="mw-tp-propose"]')
   await O.act('mw-tp-depot-open')
   await O.page.waitForSelector('.modal #mw-tp-d-pause')
   check('Dialog: Ruhepause 30 Minuten, nach 6 Stunden (Vorgabe), Hinweis § 11 AZG', (await O.page.inputValue('#mw-tp-d-pause')) === '30' && (await O.page.inputValue('#mw-tp-d-pause-after')) === '6' && /§ 11 AZG/.test(await O.text('.modal')))

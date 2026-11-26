@@ -77,7 +77,12 @@ function draft() {
   if (!m.draft) {
     const existing = m.id ? items().find((c) => c.id === m.id) : null
     const today = todayISO()
-    m.draft = existing ? structuredClone(existing) : { id: '', objectId: m.objectId || app.ui.complaintObject || '', date: m.date || today, received: nowIso(), source: SOURCES[0], kind: KINDS[0], text: '', contact: '', employees: [], measure: '', due: defaultDue(KINDS[0], today), status: 'offen', result: '', informed: false, history: [] }
+    // Vorlage z. B. aus einer Meldung des Fahrers (core/matten-meldungen.js complaintDraft): Art, Quelle, Text, ref
+    const pre = m.prefill || {}
+    const kind = KINDS.includes(pre.kind) ? pre.kind : KINDS[0]
+    m.draft = existing
+      ? structuredClone(existing)
+      : { id: '', objectId: m.objectId || pre.objectId || app.ui.complaintObject || '', date: m.date || pre.date || today, received: nowIso(), source: SOURCES.includes(pre.source) ? pre.source : SOURCES[0], kind, text: pre.text || '', contact: pre.contact || '', employees: [], measure: '', due: defaultDue(kind, today), status: 'offen', result: '', informed: false, history: [], ...(pre.ref ? { ref: pre.ref } : {}) }
   }
   return m.draft
 }
@@ -235,7 +240,13 @@ registerActions(
   {
     'complaint-new': async (el) => {
       if (el.dataset.date) await ensureRange(addDays(el.dataset.date, -1), el.dataset.date).catch(() => {})
-      openModal({ type: 'complaint', objectId: el.dataset.obj || '', date: el.dataset.date || '' })
+      let prefill = null
+      try {
+        prefill = el.dataset.prefill ? JSON.parse(el.dataset.prefill) : null
+      } catch {
+        prefill = null
+      }
+      openModal({ type: 'complaint', objectId: el.dataset.obj || '', date: el.dataset.date || '', ...(prefill ? { prefill } : {}) })
     },
     'complaint-save': (el) => save(readForm(), { done: !!el.dataset.done }),
     'kix-rek': async (el) => {

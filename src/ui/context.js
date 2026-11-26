@@ -682,17 +682,28 @@ export function renderModal() {
   }
 }
 
-/** Dialog neu zeichnen, ohne bereits getippte Eingaben zu verlieren (`skip`: Felder, die aus dem Zustand neu entstehen). */
-export function renderModalKeepingInput(skip = /^$/) {
+/**
+ * fn ausführen (z. B. Dialog oder alles neu zeichnen), ohne getippte Eingaben im Dialog zu verlieren (`skip`: Felder,
+ * die aus dem Zustand neu entstehen). Kästchen und Optionsfelder behalten ihre Auswahl.
+ */
+export function keepModalInput(fn, skip = /^$/) {
   const fields = [...document.querySelectorAll('#modal-root input[id], #modal-root select[id], #modal-root textarea[id]')]
-  const saved = fields.filter((el) => el.type !== 'file' && !skip.test(el.id)).map((el) => [el.id, el.type === 'checkbox' ? el.checked : el.value])
-  renderModal()
+  const check = (el) => el.type === 'checkbox' || el.type === 'radio'
+  const saved = fields.filter((el) => el.type !== 'file' && !skip.test(el.id)).map((el) => [el.id, check(el) ? el.checked : el.value])
+  const type = app.ui.modal?.type
+  fn()
+  if (!type || app.ui.modal?.type !== type) return
   for (const [id, value] of saved) {
     const el = document.getElementById(id)
     if (!el) continue
-    if (el.type === 'checkbox') el.checked = value
+    if (check(el)) el.checked = value
     else el.value = value
   }
+}
+
+/** Dialog neu zeichnen, ohne bereits getippte Eingaben zu verlieren (`skip`: Felder, die aus dem Zustand neu entstehen). */
+export function renderModalKeepingInput(skip = /^$/) {
+  keepModalInput(renderModal, skip)
 }
 
 // Knopf, der den Dialog geöffnet hat: nach dem Schließen bekommt er den Fokus zurück (Tastatur)

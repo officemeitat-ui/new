@@ -550,7 +550,7 @@ lazy(BUERO, {
     mwg-open mwg-save mwg-remove mwg-retime mwg-geo
     mw-ls-goto mw-ls-filter mw-ls-range mw-ls-sel mw-ls-sel-all mw-ls-open mw-ls-reload mw-ls-fak mw-ls-create mw-ls-create-all mw-ls-pdf mw-ls-photo mw-ls-proof mw-ls-send
     mw-ls-archive mw-ls-archive-all mw-ls-run-open mw-ls-run-mode mw-ls-run mw-ls-run-stop mw-ls-settings-open mw-ls-settings-save
-    mwu-goto mwu-list mwu-tour mwu-reload mwu-apply mwu-catchup mwu-settings-open mwu-settings-save
+    mwu-goto mwu-list mwu-tour mwu-reload mwu-apply mwu-catchup mwu-settings-open mwu-settings-save mwu-rep-complaint mwu-rep-done mwu-reports-goto
     mwc-open mwc-set mwc-undo
     mwb-goto mwb-reload mwb-hist mwb-all mwb-booking-open mwb-pdf mwb-inventory-open mwb-inventory-save mwb-book-open mwb-book-kind
     mwb-book-save mwb-send mwb-cancel-ask mwb-cancel mwb-settings-open mwb-settings-save`,
@@ -576,9 +576,9 @@ lazy(() => import('./matten-fahrer.js'), {
       text: 'Mattenwechsel: eigene Touren, Wechsel je Liegeplatz bestätigen',
     },
   ],
-  modals: 'mwf-not mwf-finish mwf-reopen',
+  modals: 'mwf-not mwf-report mwf-finish mwf-reopen',
   actions: `mwf-open mwf-goto mwf-back mwf-stop mwf-back-tour mwf-refresh mwf-sync mwf-nav mwf-photo-open mwf-ref-open mwf-start mwf-arrive mwf-done mwf-qty mwf-reset
-    mwf-not-open mwf-not mwf-note mwf-photo mwf-photo-del mwf-finish-open mwf-outcome mwf-nosig mwf-finish mwf-reopen-open mwf-reopen`,
+    mwf-not-open mwf-not mwf-report-open mwf-rep-field mwf-report mwf-report-del mwf-note mwf-photo mwf-photo-del mwf-finish-open mwf-outcome mwf-nosig mwf-finish mwf-reopen-open mwf-reopen`,
 })
 
 // arbeitsschutz.js: Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung mit Maßnahmen und Fristen

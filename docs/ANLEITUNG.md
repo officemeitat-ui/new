@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 443 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 444 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
-- [Objekte & Kunden](#objekte-kunden) (114)
+- [Objekte & Kunden](#objekte-kunden) (115)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (83)
 - [Verwaltung](#verwaltung) (76)
@@ -2493,6 +2493,23 @@ Unter „Matten-Touren“ sehen Fahrer ihre vom Büro freigegebenen Touren: Stop
 > Tipp: Das Büro sieht hier alle Touren mit Fortschritt.
 
 *Fahrer Mattenwechsel, Mattenwechsel Büro, Vollzugriff*
+
+### Problem am Stopp melden (Schaden, Beschwerde)
+
+*In der App: Matten-Touren*
+
+Am Stopp „Problem melden“ antippen: was passiert ist (Matte beschädigt, fehlt, stark verschmutzt, Beschwerde, Zugang), den Liegeplatz und kurz was genau. Das Büro sieht die Meldung in der Matten-Übersicht und unter „Zu erledigen“ und macht bei Bedarf eine Reklamation daraus.
+
+1. Den Stopp öffnen.
+2. Unten „Problem melden“ antippen.
+3. Art wählen, Liegeplatz wählen, kurz beschreiben, „Melden“.
+4. Im Büro: Matten-Übersicht → „Als Reklamation“ oder „Erledigt“.
+
+> Tipp: Ein Foto nimmst du am Liegeplatz auf; das Büro sieht es zur Meldung.
+> Tipp: Melden geht auch nach dem Abschluss des Stopps.
+> Tipp: Reklamationen anlegen darf, wer die Reklamationen bearbeitet.
+
+*Melden: Fahrer Mattenwechsel; Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 
 ### Stopp: Matten je Liegeplatz bestätigen
 
