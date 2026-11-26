@@ -3346,3 +3346,14 @@ input.mwb-qty { width: 6rem; max-width: 100%; text-align: right; }
 /* Handy: die Einleitung einer Ansicht ist auf zwei Zeilen gekürzt, damit der Inhalt gleich zu sehen ist; Antippen zeigt sie ganz */
 body.mobile main .section-head:not(.small) p { cursor: pointer; }
 body.mobile main .section-head:not(.small) p:not(.open) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+
+/* Stammtouren (Mattenwechsel): Liegeplätze der Tour links, zum Hinzufügen rechts; am Handy untereinander */
+.mw-st-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+@media (max-width: 760px) { .mw-st-cols { grid-template-columns: 1fr; } }
+.mw-st-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; }
+.mw-st-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line, #dde5ea); }
+.mw-st-no { min-width: 2ch; text-align: right; color: var(--muted, #4b5b67); font-variant-numeric: tabular-nums; }
+.mw-st-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mw-st-btns { display: flex; gap: 2px; }
+.mw-st-free { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; }
+.mw-st-free li { padding: 2px 0; overflow-wrap: anywhere; }

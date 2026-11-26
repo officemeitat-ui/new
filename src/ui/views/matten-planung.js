@@ -23,7 +23,8 @@ import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../c
 import { coordsText, hasCoords, parseCoords } from '../../core/geo.js'
 import { mergeJobs, nextWorkday, yearsFor } from '../../core/matten-einsaetze.js'
 import { activeAreas, emptyMatten, upgradeMatten } from '../../core/matten.js'
-import { assignDriver, duplicateStopIds, loadList, moveStop, proposeTours, retimeTour, routeRetime, stopsFromJobs, timedBy, TOUR_REASONS, TOUR_STATUS, tourProblems } from '../../core/matten-tour.js'
+import { assignDriver, duplicateStopIds, loadList, moveStop, proposeTours, retimeTour, routeRetime, stopsFromJobs, timedBy, tourId, TOUR_REASONS, TOUR_STATUS, tourProblems } from '../../core/matten-tour.js'
+import { fixedTour, splitByRoutes } from '../../core/matten-stammtouren.js'
 import {
   addStop,
   assignJobs,
@@ -200,6 +201,7 @@ function planungView() {
       single: false,
       items: [
         ed && { label: 'Neue leere Tour', icon: ICON.plus, action: 'mw-tp-new-open', hint: 'Stopps von Hand einplanen' },
+        { label: 'Stammtouren', icon: ICON.calendar, action: 'mw-st-open', hint: (doc().routes || []).length ? plural((doc().routes || []).length, 'Stammtour', 'Stammtouren') : 'feste Touren mit Reihenfolge' },
         { label: 'Betriebshof und Arbeitszeit', icon: ICON.gear, action: 'mw-tp-depot-open', hint: depot?.name || depot?.address || 'noch nicht eingetragen' },
         { label: 'Fahrer (Mattenwechsel)', icon: ICON.users, action: 'mw-tp-drivers-open', hint: list.length ? plural(list.length, 'Fahrer', 'Fahrer') : 'noch keine' },
         { label: 'Fahrerseite am Webspace', icon: ICON.send, action: 'mww-web-open', hint: webReady() ? 'eingerichtet' : 'für Fahrer ohne Microsoft-Konto' },
@@ -349,7 +351,7 @@ function tourCard(t, { ed, today, others }) {
   const stops = (t.stops || []).map((s, i) => stopRow(t, s, i, { ed, others })).join('')
   const load = loadList(t)
   return `<section class="mw-tp-tour st-${esc(t.status)}" data-tour="${esc(t.id)}" aria-label="Tour ${esc(t.driverName || 'ohne Fahrer')}">
-    <header class="mw-tp-head"><div class="mw-tp-title"><h3>${esc(t.driverName || 'ohne Fahrer')} <span class="mw-st st-${esc(t.status)}">${esc(STATUS_TEXT[t.status] || t.status)}</span></h3>
+    <header class="mw-tp-head"><div class="mw-tp-title"><h3>${esc(t.driverName || 'ohne Fahrer')} <span class="mw-st st-${esc(t.status)}">${esc(STATUS_TEXT[t.status] || t.status)}</span>${t.routeName ? ` <span class="pill info" title="Stammtour">${esc(t.routeName)}</span>` : ''}</h3>
       <p class="muted">${esc(facts.join(' · '))}</p>${providerHtml}${t.notice ? `<p class="muted">${esc(t.notice)}</p>` : ''}</div>
       <div class="actions">${mapsHtml}${actions}</div></header>
       ${sollIstText(tourSollIst(t)) ? `<p class="mw-tp-sollist"><strong>Soll-Ist:</strong> ${esc(sollIstText(tourSollIst(t)))}</p>` : ''}
@@ -550,9 +552,18 @@ async function propose(el) {
   const stops = stopsFromJobs({ jobs: jobsAll(), placements: doc().placements, objects: app.data.objects || [], customers: fakCustomers(), date, exclude: [...exclude] })
   if (!stops.length) return toast('Keine offenen Einsätze an diesem Tag (auch keine überfälligen ohne Tour).')
   const { now, by } = opts()
+  // Stammtouren des Tages zuerst (feste Reihenfolge, ihr Fahrer); der Rest geht in den normalen Vorschlag
+  const split = splitByRoutes({ stops, routes: doc().routes || [], drivers: dayDrivers, date })
+  const fixedTours = split.fixed.map((f) => fixedTour({ route: f.route, driver: f.driver, stops: f.stops, depot, shift: { from: f.driver.start, to: f.driver.end }, capacity: Number(f.driver.capacity) > 0 ? Number(f.driver.capacity) : null, date, routing: routing(), newId: () => tourId(), now, by }))
+  const restDrivers = dayDrivers.filter((d) => !split.fixed.some((f) => f.driver.id === d.id))
   // OpenRouteService bzw. Google gewählt: Stand vom Webspace frisch (eingerichtet, Limits); nicht bereit → eingebauter Anbieter mit Hinweis
   await routingStatus()
-  const res = await proposeTours({ stops, drivers: dayDrivers, depot, settings: settings(), date, now, by })
+  const res =
+    split.rest.length && restDrivers.length
+      ? await proposeTours({ stops: split.rest, drivers: restDrivers, depot, settings: settings(), date, now, by })
+      : { tours: [], unassigned: split.rest.map((x) => ({ stopId: x.id, reason: 'fahrer', text: 'kein Fahrer frei (alle in Stammtouren)', stop: x })), provider: 'luftlinie' }
+  res.tours = [...fixedTours, ...res.tours]
+  if (split.skipped.length) res.notice = [res.notice, ...split.skipped.map((x) => x.text)].filter(Boolean).join(' ')
   // Nutzung und Limits danach neu (für die Zeile über den Touren)
   await routingStatus()
   const tours = res.tours.map((t) => {
@@ -577,7 +588,7 @@ async function propose(el) {
   const cp = chosenProvider()
   const byReal = cp ? tours.filter((t) => t.route?.provider === cp.name).length : 0
   const how = !cp ? '' : byReal === tours.length && tours.length ? ` Reihenfolge und Fahrzeiten von ${cp.short}.` : ` ${cp.label} nicht verfügbar${byReal ? ` für ${plural(tours.length - byReal, 'Tour', 'Touren')}` : ''}: der eingebaute Anbieter hat gerechnet (Hinweis oben).`
-  toast(`Vorschlag: ${plural(tours.length, 'Tour', 'Touren')} mit ${plural(planned, 'Stopp', 'Stopps')}${res.unassigned.length ? `, ${res.unassigned.length} nicht eingeplant` : ''}. Noch Entwurf – prüfen und freigeben.${how}`)
+  toast(`Vorschlag: ${plural(tours.length, 'Tour', 'Touren')}${fixedTours.length ? ` (${fixedTours.length} aus ${fixedTours.length === 1 ? 'einer Stammtour' : 'Stammtouren'})` : ''} mit ${plural(planned, 'Stopp', 'Stopps')}${res.unassigned.length ? `, ${res.unassigned.length} nicht eingeplant` : ''}. Noch Entwurf – prüfen und freigeben.${how}`)
 }
 
 // ---------------------------------------------------------------- Freigabe

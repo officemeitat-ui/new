@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 440 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 441 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
-- [Objekte & Kunden](#objekte-kunden) (112)
+- [Objekte & Kunden](#objekte-kunden) (113)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (76)
@@ -2638,6 +2638,23 @@ In „Matten-Tourenplanung“ wählst du den Tag und die Fahrer des Tages; „Vo
 > Tipp: Ein neuer Vorschlag ersetzt die Entwürfe des Tages, freigegebene Touren bleiben.
 
 *Mattenwechsel Büro, Vollzugriff (Fahrer sehen die Planung nicht)*
+
+### Stammtouren (feste Touren mit Reihenfolge)
+
+*In der App: Matten-Tourenplanung*
+
+Eine Stammtour ist eine feste Tour: Liegeplätze in fester Reihenfolge, Wochentag, Rhythmus (z. B. alle 2 Wochen), Fahrer und Fahrzeug. An ihren Tagen kommt sie im Tourvorschlag zuerst, in dieser Reihenfolge, auch innerhalb eines Objekts wie am Flughafen. Alles bleibt in der App änderbar.
+
+1. „Matten-Tourenplanung“ → „Mehr“ → „Stammtouren“ → „Stammtour“.
+2. Name, Wochentag, Rhythmus, nächsten Tag und Fahrer wählen.
+3. Liegeplätze über Gebiet oder Suche hinzufügen und mit ↑ ↓ ordnen; speichern.
+4. „Liegeplätze anpassen“: Intervall und Starttermin passen dann zur Tour.
+5. Im „Matten-Kalender“ „Einsätze planen“, dann am Tag der Tour „Vorschlag erzeugen“.
+
+> Tipp: Fährt der Fahrer an dem Tag nicht, landen die Stopps im normalen Vorschlag (mit Hinweis).
+> Tipp: Ein Liegeplatz gehört in eine Stammtour; doppelte zeigt die Liste an.
+
+*Mattenwechsel Büro, Vollzugriff*
 
 ### Tour freigeben und Freigabe zurücknehmen
 
