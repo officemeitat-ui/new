@@ -471,7 +471,7 @@ $sp = sprache();
 $datum = fn (string $d): string => $d !== '' ? (DateTimeImmutable::createFromFormat('!Y-m-d', $d) ?: new DateTimeImmutable())->format('d.m.Y') : '';
 $basis = 'unterweisung.php';
 $text = fn (array $def): array => $def['texte'][$sp] ?? $def['texte']['de'];
-$stil = '<style>.uw-abschnitt{border-top:1px solid #dde5ea;padding:.4rem 0}.uw-abschnitt h2{font-size:1.1rem;margin:.6rem 0 .3rem}.uw-abschnitt ul{margin:.3rem 0}'
+$stil = '<style>h1{clear:both}.uw-abschnitt{border-top:1px solid #dde5ea;padding:.4rem 0}.uw-abschnitt h2{font-size:1.1rem;margin:.6rem 0 .3rem}.uw-abschnitt ul{margin:.3rem 0}'
     . 'fieldset.uw-frage{border:1px solid #c9d6df;border-radius:8px;margin:.8rem 0;padding:.5rem .8rem}fieldset.uw-frage legend{font-weight:700;padding:0 .3rem}fieldset.uw-falsch{border:2px solid #b3261e;background:#fdf3f2}'
     . 'fieldset.uw-frage label.haken{align-items:flex-start}fieldset.uw-frage label.haken input{flex:0 0 auto;margin-top:.15rem}.uw-hinweis{color:#b3261e;font-weight:600;margin:.2rem 0}'
     . '.uw-karte{border:1px solid #c9d6df;border-radius:8px;padding:.6rem .8rem;margin:.6rem 0}.uw-karte.offen{border:2px solid #0a5a96}.uw-karte h2{font-size:1.05rem;margin:0 0 .2rem}'

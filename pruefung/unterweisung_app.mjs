@@ -88,6 +88,7 @@ try {
   check('Handy: Unterweisung in der Sprache der Person, ohne Querscrollen', (await ph.textContent('h1')).trim() === VORLAGE[lang].title && (await ph.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)))
   for (let i = 0; i < quiz.length; i++) await ph.locator(`fieldset:nth-of-type(${i + 1}) label`, { hasText: quiz[i].options[quiz[i].correct] }).first().click()
   await Promise.all([ph.waitForURL(/schritt=unterschrift/), ph.click('form button[type=submit]')])
+  await ph.locator('.unterschrift canvas').scrollIntoViewIfNeeded()
   const box = await ph.locator('.unterschrift canvas').boundingBox()
   await ph.mouse.move(box.x + 20, box.y + 40)
   await ph.mouse.down()

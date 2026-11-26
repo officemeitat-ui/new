@@ -204,6 +204,7 @@ try {
   for (let i = 0; i < de.length; i++) await pg.locator(`fieldset:nth-of-type(${i + 1}) label`, { hasText: de[i].options[de[i].correct] }).first().click()
   await Promise.all([pg.waitForURL(/schritt=unterschrift/), pg.click('button[type=submit]')])
   check('Im Browser bestanden: Seite zum Unterschreiben, Feld sichtbar (Skript geladen)', await pg.locator('.unterschrift').isVisible())
+  await pg.locator('.unterschrift canvas').scrollIntoViewIfNeeded()
   const box = await pg.locator('.unterschrift canvas').boundingBox()
   await pg.mouse.move(box.x + 20, box.y + 30)
   await pg.mouse.down()
