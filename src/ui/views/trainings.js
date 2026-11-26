@@ -11,6 +11,7 @@ import { hashIndex, sha256Hex } from '../../core/staffplan.js'
 import { langInfo, langOf, sourceKey } from '../../core/sprachen.js'
 import { DECL_DEFAULT, LANG_IDS, languageStatus, onlineOf, onlineTypes, onlineVersion, parseContent, parseQuiz, passCount, resultRecords, snapshot, webAssignments, webDefinition } from '../../core/unterweisung-online.js'
 import { onlineProofDocument, onlineProofName, sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
+import { FORMULAR_VORLAGEN } from '../../core/formular-vorlagen.js'
 import { portalSettings } from '../staffplan.js'
 import { app, canEdit, closeModal, confirmStep, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { clearImportUndo, importUndoBanner, recordImportUndo, setImportUndoLabel } from '../import-undo.js'
@@ -726,7 +727,7 @@ function onlineListModal() {
       <div class="table-wrap"><table class="data"><thead><tr><th>Art</th><th>Stand</th><th>Inhalt</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       ${last ? `<p class="muted">${esc(last)}</p>` : ''}
       <p class="note">Rechtlich (§ 14 ASchG): Die Unterweisung muss verständlich sein (bei Bedarf in der Muttersprache), in der Arbeitszeit stattfinden und nachweislich erfolgen. Am Handy ist sie eine schriftliche Unterweisung; laut Arbeitsinspektion ergänzt sie die persönliche Unterweisung am Arbeitsplatz (Einschulung im Objekt), ersetzt sie aber nicht. Den Inhalt mit eurer Evaluierung und der Sicherheitsfachkraft abstimmen.</p>`,
-    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${portalOn() ? '<button class="btn" data-action="uo-sync">Jetzt abgleichen</button>' : ''}</div>`,
+    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${editable() ? FORMULAR_VORLAGEN.filter((f) => !types().some((t) => t.id === f.id)).map((f) => `<button class="btn" data-action="uo-form-add" data-tpl="${esc(f.id)}">${ICON.plus} ${esc(f.name)}</button>`).join('') : ''}${portalOn() ? '<button class="btn" data-action="uo-sync">Jetzt abgleichen</button>' : ''}</div>`,
   })
 }
 registerModal('tr-online', onlineListModal, { module: MODULE })
@@ -756,7 +757,7 @@ function onlineEditModal() {
     subtitle: `${plural(q, 'Frage', 'Fragen')} · gültig ${Number(type.months) > 0 ? `${type.months} Monate` : 'ohne Ablauf'}`,
     wide: true,
     body: `<label class="check"><input type="checkbox" id="uo-on" ${d.on ? 'checked' : ''}><span>Am Handy durchführen (über „Plan am Handy“)</span></label>
-      <p><button class="btn small" data-action="uo-template">${app.ui.confirm === 'uo-template' ? 'Eigene Texte ersetzen? Zum Bestätigen nochmals klicken' : 'Vorlage Gebäudereinigung &amp; Facility (Österreich) einsetzen'}</button> <span class="muted">alle 6 Sprachen, 20 Abschnitte, 15 Fragen; danach an euren Betrieb anpassen</span></p>
+      <p><label class="field inline"><span>Vorlage</span><select id="uo-tpl">${options([['sicherheit', 'Sicherheitsunterweisung Gebäudereinigung & Facility (6 Sprachen, 15 Fragen)'], ...FORMULAR_VORLAGEN.map((f) => [f.id, `Formular: ${f.name}`])], m.tpl || (type.kind === 'formular' ? FORMULAR_VORLAGEN[0].id : 'sicherheit'))}</select></label> <button class="btn small" data-action="uo-template">${app.ui.confirm === 'uo-template' ? 'Eigene Texte ersetzen? Zum Bestätigen nochmals klicken' : 'Vorlage einsetzen'}</button> <span class="muted">danach an euren Betrieb anpassen</span></p>
       <div class="uo-tabs" role="group" aria-label="Sprache">${tabs}</div>
       ${m.lang !== 'de' ? `<p class="note">${esc(langInfo(m.lang).label)}: gleiche Fragen in derselben Reihenfolge wie auf Deutsch, die richtige Antwort an derselben Stelle. Leer lassen = die Person sieht Deutsch mit dem Hinweis, im Büro nachzufragen.</p>` : ''}
       <div class="form-grid">
@@ -807,6 +808,15 @@ registerActions(
       const m = readOnline()
       const d = draftOf(m)
       if (Object.values(d.texts).some((t) => String(t?.content || '').trim()) && !confirmStep('uo-template', renderModal)) return
+      m.tpl = val('uo-tpl') || 'sicherheit'
+      const form = FORMULAR_VORLAGEN.find((f) => f.id === m.tpl)
+      if (form) {
+        d.texts = structuredClone(form.texts)
+        d.on = true
+        m.lang = 'de'
+        renderModal()
+        return toast(`Vorlage „${form.name}“ eingesetzt (ohne Fragen: lesen und unterschreiben). Bitte prüfen und speichern.`)
+      }
       const { VORLAGE } = await import('../../core/unterweisung-vorlage.js')
       d.texts = structuredClone(VORLAGE)
       d.on = true
@@ -816,6 +826,15 @@ registerActions(
           .map((t) => t.id)
       renderModal()
       toast('Vorlage eingesetzt (6 Sprachen). Bitte durchlesen, an euren Betrieb anpassen und speichern.')
+    },
+    // Formular aus der Vorlage als eigene Art: Diensthandy nur für Personen mit der Qualifikation „Diensthandy“
+    'uo-form-add': (el) => {
+      const f = FORMULAR_VORLAGEN.find((x) => x.id === el.dataset.tpl)
+      if (!f || types().some((t) => t.id === f.id)) return
+      ownTypes().push({ id: f.id, name: f.name, months: f.months, who: f.id === 'diensthandy' ? 'skill:Diensthandy' : 'alle', kind: 'formular', law: '', note: f.id === 'diensthandy' ? 'für alle mit der Qualifikation „Diensthandy“ (im Stammblatt)' : 'einmal unterschreiben', active: true, online: { on: true, texts: structuredClone(f.texts), pass: 0, videoLink: '', video: null, covers: [] } })
+      persist()
+      openModal({ type: 'tr-online-edit', typeId: f.id })
+      toast(`„${f.name}“ angelegt: prüfen und „Speichern und übertragen“.`)
     },
     'uo-video-del': () => {
       const m = readOnline()

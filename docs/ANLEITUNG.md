@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 438 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 440 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (74)
+- [Verwaltung](#verwaltung) (76)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4966,6 +4966,33 @@ Mitarbeitende öffnen die Unterweisung über ihren Link von „Plan am Handy“,
 > Tipp: Inhalt mit eurer Evaluierung und der Sicherheitsfachkraft abstimmen.
 
 *Wer Unterweisungen & Fristen bearbeiten darf*
+
+### Formulare am Handy unterschreiben lassen
+
+*In der App: Unterweisungen & Fristen*
+
+Formulare wie die Vereinbarung zum Diensthandy oder die Information zu Arztbesuchen und Behördenwegen laufen wie die Unterweisung am Handy, nur ohne Fragen: lesen, bestätigen, mit dem Finger unterschreiben. Wer es braucht, steht in der Matrix unter „Unterweisungen & Fristen“; das unterschriebene Formular gibt es als PDF.
+
+1. „Mehr“ → „Unterweisung am Handy“.
+2. Unten „Information Arztbesuche …“ bzw. „Vereinbarung Diensthandy“ anlegen.
+3. Text prüfen und „Speichern und übertragen“.
+4. Für das Diensthandy im Stammblatt die Qualifikation „Diensthandy“ geben.
+
+> Tipp: Für Vereinbarungen mit Folgen (Rückgabe, Abzug vom Lohn) zusätzlich auf Papier unterschreiben lassen.
+
+*Wer Unterweisungen & Fristen bearbeiten darf*
+
+### Geräte aus Excel einfügen
+
+*In der App: Geräte & Maschinen*
+
+Unter „Geräte & Maschinen“ → „Mehr“ → „Aus Excel einfügen“ legst du viele Geräte auf einmal an: Zeilen samt Überschrift kopieren und einfügen. Pflicht ist die Bezeichnung; die Art erkennt die App am Namen, die Prüfintervalle kommen von der Art.
+
+1. In Excel die Zeilen samt Überschrift markieren und kopieren.
+2. „Geräte & Maschinen“ → „Mehr“ → „Aus Excel einfügen“.
+3. Einfügen, „Prüfen“, Vorschau ansehen, „Geräte anlegen“.
+
+*Wer Geräte & Maschinen bearbeiten darf*
 
 ### Mitarbeiterakte und Mitarbeitergespräch
 

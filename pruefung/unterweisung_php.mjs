@@ -178,7 +178,20 @@ try {
   const ohne = await fetch(`http://127.0.0.1:${PORTS.A}/unterweisung.php?aktion=abspielen&u=sicherheit`)
   check('Video ohne Link: nicht zu sehen', ohne.status === 404, `${ohne.status}`)
 
-  // ---------------------------------------------------------------- 7. Im Browser am Handy unterschreiben
+  // ---------------------------------------------------------------- 7. Formular ohne Fragen (Diensthandy)
+  const { FORMULAR_VORLAGEN } = await import('../src/core/formular-vorlagen.js')
+  const handy = FORMULAR_VORLAGEN.find((f) => f.id === 'diensthandy')
+  const defF = webDefinition({ id: 'diensthandy', name: handy.name, months: 0, who: 'skill:Diensthandy', kind: 'formular', online: { on: true, texts: handy.texts, pass: 0 } }, { types: [] })
+  await api('uebertragen', { arten: [def3, defF], personen: { ...personen, [sha(ANA)]: [...personen[sha(ANA)], { art: 'diensthandy', stand: 'fehlt', bis: '', datum: '' }] }, namen, uebernommen: [] })
+  p = await page('A', 'u=diensthandy')
+  check('Formular: ohne Fragen, „lesen und unterschreiben“, Knopf weiter zur Unterschrift', p.status === 200 && !p.html.includes('<fieldset') && p.text.includes(handy.texts.de.title) && /name="v" value="[a-f0-9]{8}"/.test(p.html), p.text.slice(0, 200))
+  const vf = p.html.match(/name="v" value="([a-f0-9]{8})"/)?.[1]
+  p = await page('A', 'aktion=pruefen&u=diensthandy', { form: { v: vf } })
+  check('Formular: weiter → Unterschrift', p.status === 303 && p.location.endsWith('u=diensthandy&schritt=unterschrift'))
+  p = await page('A', 'aktion=unterschreiben&u=diensthandy', { form: { unterschrift: 'M5 5L30 30L60 10L90 40', bestaetigt: '1' } })
+  check('Formular unterschrieben: Ergebnis ohne Fragen (0 von 0)', p.status === 303 && (await api('status')).json.ergebnisse.some((x) => x.art === 'diensthandy' && x.gesamt === 0 && x.richtig === 0))
+
+  // ---------------------------------------------------------------- 8. Im Browser am Handy unterschreiben
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true })
   await ctx.addCookies([{ name: 'mein_plan', value: BOB, domain: '127.0.0.1', path: '/' }])
   const pg = await ctx.newPage()

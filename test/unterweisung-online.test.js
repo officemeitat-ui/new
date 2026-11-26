@@ -156,3 +156,18 @@ test('PHP: Bestehensgrenze wie in der App', { skip: !php && 'ohne PHP' }, () => 
   const out = JSON.parse(execFileSync('php', ['-r', `${fn} echo json_encode([noetig(15, 80), noetig(13, 80), noetig(5, 0), noetig(0, 80), noetig(10, 100)]);`], { encoding: 'utf8' }))
   assert.deepEqual(out, [passCount(15, 80), passCount(13, 80), passCount(5, 0), passCount(0, 80), passCount(10, 100)])
 })
+
+test('Formulare zum Unterschreiben (Diensthandy, Arztbesuche): ohne Fragen, gültiger Inhalt, Definition ohne Lösung', async () => {
+  const { FORMULAR_VORLAGEN } = await import('../src/core/formular-vorlagen.js')
+  assert.deepEqual(FORMULAR_VORLAGEN.map((f) => f.id), ['dienstverhinderung', 'diensthandy'])
+  for (const f of FORMULAR_VORLAGEN) {
+    const st = languageStatus({ texts: f.texts })
+    assert.ok(st[0].ok, f.id)
+    assert.equal(st[0].questions, 0, `${f.id}: ohne Fragen`)
+    assert.ok(!/PIN:\s*\d|Pin:\s*\d|\d{4}\s*$/m.test(f.texts.de.content), `${f.id}: keine PIN oder Nummer einer Person`)
+    const d = webDefinition({ id: f.id, name: f.name, months: 0, who: 'alle', kind: 'formular', online: { on: true, texts: f.texts, pass: 0 } }, { types: [] })
+    assert.deepEqual(d.loesung, [])
+    assert.equal(d.texte.de.fragen.length, 0)
+    assert.equal(d.monate, 0)
+  }
+})

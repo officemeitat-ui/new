@@ -54,6 +54,7 @@ import {
   withStatus,
 } from '../../core/geraete.js'
 import { toCSV } from '../../core/reports.js'
+import { parseDeviceTable } from '../../core/geraete-import.js'
 import { labelDocument, labelPdfName } from '../../export/geraete-pdf.js'
 import { app, canEdit, closeModal, confirmStep, hashKey, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
@@ -133,6 +134,7 @@ function geraeteView() {
         single: false,
         items: [
           ed && { label: 'Gerät anlegen', icon: ICON.plus, action: 'gr-edit-open', hint: 'Inventarnummer, Art, Standort' },
+          ed && { label: 'Aus Excel einfügen', icon: ICON.upload, action: 'gr-import-open', hint: 'Bezeichnung, Hersteller, Seriennummer …' },
           ed && live && { label: 'Prüfung erfassen', icon: ICON.check, action: 'gr-check-open' },
           ed && live && { label: 'Ausgeben oder zurücknehmen', icon: ICON.send, action: 'gr-issue-open' },
           ed && { label: 'Arten und Prüfintervalle', icon: ICON.gear, action: 'gr-types-open', hint: 'Vorschläge anpassen' },
@@ -513,6 +515,43 @@ async function storeNew(list, base) {
   return out
 }
 const filesBase = (item, what, date = todayISO()) => `geraete/dateien/${date.slice(0, 4)}/${fileSafe(item.no)}_${what}_${date}_${uid('f')}`
+
+// ---------------------------------------------------------------- Aus Excel einfügen (core/geraete-import.js)
+
+function importModal() {
+  const m = app.ui.modal
+  const r = m.result
+  const typeName = (id) => typeOf(doc(), id)?.name || id
+  const preview = r
+    ? `<section><h3>Vorschau</h3>${r.errors.length ? `<p class="err-text">${esc(r.errors.join(' '))}</p>` : ''}
+      ${r.items.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Bezeichnung</th><th>Art</th><th>Hersteller</th><th>Seriennummer</th><th>Kaufdatum</th></tr></thead><tbody>${r.items.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(typeName(x.typeId))}</td><td>${esc(x.maker)}</td><td>${esc(x.serial)}</td><td>${esc(x.boughtOn ? formatDate(x.boughtOn, { weekday: false, year: true }) : '')}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${r.skipped.length ? `<p class="note">Schon vorhanden (${r.skipped.length}): ${esc(r.skipped.slice(0, 10).join(', '))}</p>` : ''}</section>`
+    : ''
+  return modalFrame({
+    title: 'Geräte aus Excel einfügen',
+    wide: true,
+    body: `<p class="note">In Excel die Zeilen samt Überschrift markieren, kopieren und hier einfügen. Pflicht ist „Bezeichnung“; dazu passen Art, Hersteller, Modell, Seriennummer, Inventarnummer, Kaufdatum, Preis, Standort, Notiz. Ohne Art erkennt die App sie am Namen (z. B. Kärcher HD → Hochdruckreiniger), die Prüfintervalle kommen von der Art. Ohne Inventarnummer vergibt die App die nächste.</p>
+      <label class="field"><span>Tabelle</span><textarea id="gr-imp-text" rows="8" placeholder="Bezeichnung&#9;Hersteller&#9;Seriennummer&#9;Kaufdatum">${esc(m.text || '')}</textarea></label>${preview}`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="gr-import-check">Prüfen</button>${r?.items.length ? `<button class="btn primary" data-action="gr-import-save">${plural(r.items.length, 'Gerät', 'Geräte')} anlegen</button>` : ''}</div>`,
+  })
+}
+registerModal('gr-import', importModal, { module: MODULE })
+
+function importItems(list) {
+  const meta = { date: todayISO(), by: user(), at: nowIso() }
+  const items = [...doc().items]
+  for (const x of list) {
+    const type = typeOf(doc(), x.typeId) || typeOf(doc(), 'sonstige')
+    items.push({
+      id: uid('gr'), no: x.no || nextNo(items, prefixOf(doc())), name: x.name, typeId: type?.id || x.typeId, maker: x.maker, model: x.model, serial: x.serial, boughtOn: x.boughtOn, price: x.price ?? '',
+      supplierId: '', supplierName: '', home: { kind: 'lager', id: '', label: x.place || (app.data.material?.locations || [])[0]?.name || 'Hauptlager' }, responsibleId: '', responsibleName: '',
+      status: 'betrieb', statusNote: '', issued: null, plans: plansFromType(type, () => uid('gp')), photos: [], docs: [], note: x.note,
+      history: [{ at: meta.at, date: meta.date, kind: 'angelegt', by: meta.by, note: 'aus Excel eingefügt' }], createdAt: meta.at, createdBy: meta.by, changedAt: meta.at, changedBy: meta.by,
+    })
+  }
+  doc().items = items
+  persist()
+}
 
 async function saveItem() {
   const m = app.ui.modal
@@ -961,6 +1000,21 @@ registerActions(
       renderModal()
     },
     'gr-save': () => saveItem(),
+    'gr-import-open': () => openModal({ type: 'gr-import' }),
+    'gr-import-check': () => {
+      const m = app.ui.modal
+      m.text = val('gr-imp-text')
+      m.result = parseDeviceTable(m.text, { types: allTypes(doc()), existing: doc().items })
+      renderModal()
+    },
+    'gr-import-save': () => {
+      const m = app.ui.modal
+      if (!m.result?.items.length) return
+      importItems(m.result.items)
+      closeModal()
+      renderNow()
+      toast(`${plural(m.result.items.length, 'Gerät', 'Geräte')} angelegt. Bitte Standort und Prüfungen je Gerät prüfen.`)
+    },
     'gr-delete': (el) => {
       if (!confirmStep(`gr-del:${el.dataset.id}`, renderModal)) return
       doc().items = doc().items.filter((i) => i.id !== el.dataset.id)

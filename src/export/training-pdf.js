@@ -85,7 +85,7 @@ export function onlineProofDocument({ record, type = {}, emp = {}, version = nul
   }
   const body = [
     ...header({
-      title: 'Unterweisungsnachweis',
+      title: type.kind === 'formular' ? 'Unterschriebenes Formular' : 'Unterweisungsnachweis',
       subtitle: `${type.name || ''} · ${formatDate(record.date, { year: true })}`,
       brand,
       logo,
@@ -128,12 +128,14 @@ export function onlineProofDocument({ record, type = {}, emp = {}, version = nul
       color: colors.grey,
       margin: [0, 2, 0, 0],
     },
-    {
-      text: 'Elektronische Unterweisung als schriftliche Form nach § 14 ASchG; sie ergänzt die persönliche Unterweisung am Arbeitsplatz (Einschulung im Objekt) und ersetzt sie nicht.',
-      fontSize: 8,
-      color: colors.grey,
-      margin: [0, 10, 0, 0],
-    },
+    type.kind === 'formular'
+      ? ''
+      : {
+          text: 'Elektronische Unterweisung als schriftliche Form nach § 14 ASchG; sie ergänzt die persönliche Unterweisung am Arbeitsplatz (Einschulung im Objekt) und ersetzt sie nicht.',
+          fontSize: 8,
+          color: colors.grey,
+          margin: [0, 10, 0, 0],
+        },
     ...content,
   ]
   return docShell(body, {

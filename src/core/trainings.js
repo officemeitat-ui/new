@@ -30,7 +30,7 @@ export const TRAINING_DEFAULTS = [
   { id: 'fuehrerschein', name: 'Führerscheinkontrolle', months: 6, who: 'skill:Führerschein', law: '§ 103 Abs. 1 Z 3 KFG', note: 'Führerschein vorlegen lassen (keine Kopie nötig)', kind: 'kontrolle' },
   { id: 'aufenthalt', name: 'Aufenthaltstitel / Arbeitserlaubnis', months: 0, who: 'optional', law: 'AuslBG', note: 'Ablaufdatum eintragen; abgelaufen = nicht einteilen', kind: 'dokument', blocking: true },
 ]
-export const KINDS = { unterweisung: 'Unterweisung', kurs: 'Kurs', kontrolle: 'Kontrolle', dokument: 'Dokument mit Ablaufdatum' }
+export const KINDS = { unterweisung: 'Unterweisung', kurs: 'Kurs', kontrolle: 'Kontrolle', dokument: 'Dokument mit Ablaufdatum', formular: 'Formular zum Unterschreiben' }
 export const STATE_TEXT = { ok: 'gültig', bald: 'läuft bald ab', abgelaufen: 'abgelaufen', fehlt: 'fehlt', na: '–' }
 
 export const emptyTrainings = () => ({ types: [], records: [], sessions: [] })

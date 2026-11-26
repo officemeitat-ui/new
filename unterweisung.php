@@ -678,7 +678,7 @@ $deckt = array_values(array_filter(array_map(fn ($id) => (string) ($arten[$id]['
 $offen = ist_offen($z, $st, $hash);
 $seite('<h1>' . $h($titel) . '</h1>' . ($def['gesetz'] !== '' ? '<p class="leise">' . th('uw_gesetz', ['gesetz' => $h($def['gesetz'])]) . '</p>' : '')
     . (!isset($def['texte'][$sp]) ? '<p class="veraltet">' . th('uw_deutsch_hinweis') . '</p>' : '')
-    . $meldung . ($offen ? '<p>' . th('uw_intro') . '</p>' : '<p class="ok">' . ($z['bis'] !== '' ? th('uw_ok', ['datum' => $h($datum($z['bis']))]) : th('uw_ok_ohne')) . '</p>')
+    . $meldung . ($offen ? '<p>' . th($gesamt ? 'uw_intro' : 'uw_intro_formular') . '</p>' : '<p class="ok">' . ($z['bis'] !== '' ? th('uw_ok', ['datum' => $h($datum($z['bis']))]) : th('uw_ok_ohne')) . '</p>')
     . ($deckt ? '<p class="leise">' . th('uw_gilt_auch', ['namen' => $h(implode(', ', $deckt))]) . '</p>' : '')
     . $video . $abschnitte
     . ($gesamt ? '<h2 id="fragen">' . th('uw_fragen') . '</h2><p>' . th('uw_fragen_info', ['n' => (string) noetig($gesamt, (int) $def['bestehen']), 'gesamt' => (string) $gesamt]) . '</p>' : '')

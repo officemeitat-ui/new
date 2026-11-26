@@ -204,7 +204,7 @@ lazy(BUERO, {
   // sig-clear: Unterschriftsfeld (signature.js, auch im Schlüsselbuch)
   actions: `sig-clear tr-team tr-only tr-search tr-record-open tr-record-redraw tr-csv tr-session-pdf tr-record-save tr-record-delete tr-session-open
     ts-redraw ts-pick ts-save tr-types-open tt-add tt-save tr-import-open ti-check ti-save tr-ask-open tr-ask-type tr-ask-wa tr-ask-note
-    uo-open uo-edit uo-lang uo-template uo-video-del uo-save uo-sync uo-pdf`,
+    uo-open uo-edit uo-lang uo-template uo-form-add uo-video-del uo-save uo-sync uo-pdf`,
   todo: ['unterweisungen'],
 })
 
@@ -327,8 +327,8 @@ lazy(BUERO, {
       text: 'Reinigungsgeräte: Inventar, Prüfungen, Reparaturen, Ausgabe',
     },
   ],
-  modals: 'gr-card gr-edit gr-check gr-repair gr-issue gr-types',
-  actions: `gr-tab gr-filter gr-reset gr-goto gr-card-open gr-rep-all gr-cost-span gr-file gr-label gr-labels gr-csv gr-cost-csv gr-edit-open gr-redraw
+  modals: 'gr-card gr-edit gr-check gr-repair gr-issue gr-types gr-import',
+  actions: `gr-tab gr-filter gr-reset gr-goto gr-card-open gr-rep-all gr-cost-span gr-file gr-label gr-labels gr-csv gr-cost-csv gr-edit-open gr-import-open gr-import-check gr-import-save gr-redraw
     gr-plan-add gr-plan-del gr-photo gr-doc gr-file-del gr-save gr-delete gr-check-open gr-check-redraw gr-report gr-report-del gr-check-save
     gr-check-delete gr-repair-open gr-repair-redraw gr-repair-photo gr-repair-photo-del gr-repair-cost gr-repair-save gr-issue-open gr-issue-redraw
     gr-issue-save gr-return-save gr-types-open gr-type-add gr-types-save`,
