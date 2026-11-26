@@ -413,7 +413,9 @@ export const ALARM_DEFAULTS = {
   enabled: false,
   ntfy: 'https://ntfy.sh', // Push-Dienst; eigener ntfy-Server möglich
   leadHours: 3, // so weit voraus wecken (Schneefall in den nächsten Stunden)
-  snowCm: 0.3, // Schneefall ab so viel je Stunde
+  snowCm: 1, // Neuschnee ab so viel cm, zusammengezählt: die letzten backHours (Messung) und der Vorlauf (Radar, Vorhersage)
+  backHours: 3, // so weit zurück zählt gefallener Schnee mit (Messung INCA)
+  radarNow: false, // sofort wecken, sobald es laut Radar schneit (auch wenig)
   escalateMin: 15, // ohne „Bin wach“ nach so vielen Minuten an Stufe 2
   repeatMin: 3, // bis jemand bestätigt: Push alle so viele Minuten wiederholen (0 = aus; der Cronjob muss so oft laufen)
   repeats: 5, // höchstens so oft wiederholen
@@ -551,7 +553,7 @@ export function placeRules(rules = {}) {
   const num = (v, min, max) => (v === '' || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Math.min(max, Math.max(min, Number(v))))
   const time = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null)
   if (num(rules.leadHours, 1, 12) !== null) out.vorlaufStunden = num(rules.leadHours, 1, 12)
-  if (num(rules.snowCm, 0.1, 10) !== null) out.schneeCm = num(rules.snowCm, 0.1, 10)
+  if (num(rules.snowCm, 0.1, 30) !== null) out.schneeCm = num(rules.snowCm, 0.1, 30)
   if (num(rules.escalateMin, 5, 240) !== null) out.eskalationMinuten = Math.round(num(rules.escalateMin, 5, 240))
   if (time(rules.quietFrom) && time(rules.quietTo)) Object.assign(out, { ruheVon: rules.quietFrom, ruheBis: rules.quietTo })
   return out
@@ -634,7 +636,7 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     adresse: address,
     ntfy: a.ntfy || ALARM_DEFAULTS.ntfy,
     absender: a.sender || '',
-    regeln: { vorlaufStunden: Number(a.leadHours), schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2, wiederholenMinuten: Math.max(0, Number(a.repeatMin ?? ALARM_DEFAULTS.repeatMin) || 0), wiederholungen: Math.max(0, Math.round(Number(a.repeats ?? ALARM_DEFAULTS.repeats) || 0)) },
+    regeln: { vorlaufStunden: Number(a.leadHours), rueckblickStunden: Math.min(12, Math.max(0, Number(a.backHours ?? ALARM_DEFAULTS.backHours) || 0)), radarSofort: a.radarNow ? 1 : 0, schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2, wiederholenMinuten: Math.max(0, Number(a.repeatMin ?? ALARM_DEFAULTS.repeatMin) || 0), wiederholungen: Math.max(0, Math.round(Number(a.repeats ?? ALARM_DEFAULTS.repeats) || 0)) },
     orte,
     // Übersicht fürs Haupt-Gerät und Push ans Büro bei jeder Bestätigung
     ...(/^[a-f0-9]{24}$/.test(a.blick || '') ? { blick: a.blick } : {}),

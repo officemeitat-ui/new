@@ -58,7 +58,7 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/wetter-lib.php';
 require __DIR__ . '/webspace-lib.php';
 
-const ALARM_STANDARD = ['vorlaufStunden' => 3, 'schneeCm' => 0.3, 'glaetteC' => 1, 'pauseStunden' => 8, 'eskalationMinuten' => 15, 'ruheVon' => '', 'ruheBis' => '', 'ruheAusnahmeStufe' => 2, 'ohneDatenStunden' => 2, 'wiederholenMinuten' => 3, 'wiederholungen' => 5];
+const ALARM_STANDARD = ['vorlaufStunden' => 3, 'rueckblickStunden' => 3, 'radarSofort' => 0, 'schneeCm' => 1, 'glaetteC' => 1, 'pauseStunden' => 8, 'eskalationMinuten' => 15, 'ruheVon' => '', 'ruheBis' => '', 'ruheAusnahmeStufe' => 2, 'ohneDatenStunden' => 2, 'wiederholenMinuten' => 3, 'wiederholungen' => 5];
 const ALARM_ARTEN = ['schnee', 'glaette', 'warnung'];
 
 /** Regeln eines Orts: die allgemeinen, überschrieben von den eigenen des Orts (nur bekannte Schlüssel, Zahlen bzw. Uhrzeiten). */
@@ -167,46 +167,133 @@ function protokoll(array &$stand, string $ort, string $text): void
 
 // ---------------------------------------------------------------- Lage je Ort
 
+/** Anteil Schnee eines Radar-Schritts: Schnee 1, Schneeregen 0,5, ohne Art bei höchstens 0,5 °C 1, sonst 0. */
+function radar_schnee(array $s): float
+{
+    $pt = $s['pt'] === null ? null : (int) round((float) $s['pt']);
+    if ($pt === 5) {
+        return 1.0;
+    }
+    if ($pt === 7) {
+        return 0.5;
+    }
+    return $pt === null && $s['t'] !== null && $s['t'] <= 0.5 ? 1.0 : 0.0;
+}
+
+/**
+ * Neuschnee an einem Ort von $von (Rückblick) bis $bis (Vorlauf) in cm (1 mm Wasser ≈ 1 cm Schnee). Zwei Rechnungen, die
+ * größere zählt: die Vorhersage (Modell) über das ganze Fenster, und das Beobachtete: Messung der letzten Stunden (INCA,
+ * Niederschlag bei höchstens 1 °C) + Radar (Nowcast, laufende Viertelstunde bis +3 h) + danach wieder die Vorhersage.
+ * Liefert ['cm', 'jetzt' (Radar: es schneit gerade), 'ab' (Beginn laut Radar bzw. Vorhersage, sonst null), 'gemessen' (cm vorbei)].
+ */
+function schnee_menge(array $stunden, array $mess, int $jetzt, int $von, int $bis): array
+{
+    $modell = 0.0;
+    $abModell = null;
+    $kuenftig = []; // Vorhersage ab jetzt: [Beginn => cm]
+    foreach ($stunden as $h) {
+        $cm = max(0.0, (float) ($h['snow'] ?? 0));
+        $beginn = $h['at'] - 3600; // Werte von GeoSphere gelten für die Stunde, die zum Zeitstempel endet
+        if ($h['at'] > $von && $beginn < $bis) {
+            $modell += $cm;
+            if ($cm >= 0.05 && $abModell === null && $h['at'] > $jetzt) {
+                $abModell = max($beginn, $jetzt);
+            }
+            if ($h['at'] > $jetzt) {
+                $kuenftig[$beginn] = $cm;
+            }
+        }
+    }
+    $gemessen = 0.0;
+    foreach ((array) ($mess['gemessen'] ?? []) as $h) {
+        if ($h['at'] > $von && $h['at'] <= $jetzt + 900 && $h['rr'] !== null && $h['t'] !== null && $h['t'] <= 1.0) {
+            $gemessen += max(0.0, $h['rr']);
+        }
+    }
+    $radar = 0.0;
+    $radarBis = null;
+    $abRadar = null;
+    $schneitJetzt = false;
+    foreach ((array) ($mess['radar'] ?? []) as $s) {
+        if ($s['at'] + 900 <= $jetzt || $s['at'] >= $bis || $s['rr'] === null) {
+            continue;
+        }
+        $radarBis = max($radarBis ?? 0, $s['at'] + 900);
+        $cm = max(0.0, $s['rr']) * radar_schnee($s);
+        $radar += $cm;
+        if ($cm >= 0.025) {
+            $abRadar ??= max($s['at'], $jetzt);
+            $schneitJetzt = $schneitJetzt || $s['at'] <= $jetzt;
+        }
+    }
+    // nach dem Radar (oder ohne Radar ab jetzt) die Vorhersage
+    $danach = 0.0;
+    foreach ($kuenftig as $beginn => $cm) {
+        if ($radarBis === null || $beginn >= $radarBis) {
+            $danach += $cm;
+        }
+    }
+    $beobachtet = $gemessen + $radar + $danach;
+    $ab = $abRadar !== null && ($abModell === null || $abRadar <= $abModell) ? $abRadar : $abModell;
+    return ['cm' => max($modell, $beobachtet), 'jetzt' => $schneitJetzt, 'ab' => $ab, 'gemessen' => $gemessen];
+}
+
 /**
  * Wie ist die Lage an einem Ort? Liefert null (ruhig) oder
- * ['stufe' => 1–3, 'text' => …, 'arten' => [...]]: Schneefall in den nächsten Stunden,
- * Glätte (Niederschlag bei Frost) oder amtliche Schnee-/Glatteiswarnung.
+ * ['stufe' => 1–3, 'text' => …, 'arten' => [...]]: Neuschnee (Summe der letzten Stunden und des Vorlaufs, aus Vorhersage,
+ * Messung und Radar), Glätte (Niederschlag bei Frost, gefrierender Regen laut Radar) oder amtliche Schnee-/Glatteiswarnung.
+ * $mess: Radar und Messung des Orts (wetter_messung), leer = nur die Vorhersage.
  */
-function lage(array $stunden, array $warnungen, array $r, int $jetzt, array $erlaubt = ALARM_ARTEN): ?array
+function lage(array $stunden, array $warnungen, array $r, int $jetzt, array $erlaubt = ALARM_ARTEN, array $mess = []): ?array
 {
     $bis = $jetzt + (int) round($r['vorlaufStunden'] * 3600);
+    $von = $jetzt - (int) round((float) ($r['rueckblickStunden'] ?? 0) * 3600);
     // Werte von GeoSphere gelten für die Stunde, die zum Zeitstempel endet: Beginn = Zeitstempel − 1 h
     $nah = array_values(array_filter($stunden, fn ($h) => $h['at'] > $jetzt - 3600 && $h['at'] - 3600 < $bis));
     $texte = [];
     $arten = [];
     $stufe = 0;
-    $schnee = null;
-    foreach (in_array('schnee', $erlaubt, true) ? $nah : [] as $h) {
-        if (($h['snow'] ?? 0) >= $r['schneeCm']) {
-            $schnee = $h;
-            break;
-        }
-    }
-    if ($schnee) {
-        // Menge ab Beginn für die nächsten 12 Stunden
+    $schnee = in_array('schnee', $erlaubt, true) ? schnee_menge($stunden, $mess, $jetzt, $von, $bis) : null;
+    if ($schnee && ($schnee['cm'] >= (float) $r['schneeCm'] || ($schnee['jetzt'] && !empty($r['radarSofort'])))) {
+        // Menge ab Beginn für die nächsten 12 Stunden (Vorhersage), mindestens das schon Gerechnete
+        $start = $schnee['ab'] ?? $jetzt;
         $summe = 0.0;
         foreach ($stunden as $h) {
-            if ($h['at'] >= $schnee['at'] && $h['at'] < $schnee['at'] + 12 * 3600) {
-                $summe += (float) ($h['snow'] ?? 0);
+            if ($h['at'] - 3600 >= $start - 3599 && $h['at'] - 3600 < $start + 12 * 3600) {
+                $summe += max(0.0, (float) ($h['snow'] ?? 0));
             }
         }
-        $beginn = $schnee['at'] - 3600;
-        $wann = $beginn <= $jetzt ? 'Es schneit' : 'Schneefall ab ' . uhrzeit($beginn) . ' Uhr';
-        $texte[] = sprintf('%s, ca. %s cm in 12 h', $wann, str_replace('.', ',', (string) round($summe, 1)));
+        $summe = max($summe, $schnee['cm']);
+        $wann = $schnee['jetzt'] ? 'Es schneit (Radar)' : ($schnee['ab'] !== null && $schnee['ab'] > $jetzt + 600 ? 'Schneefall ab ' . uhrzeit($schnee['ab']) . ' Uhr' : ($schnee['gemessen'] >= 0.1 ? 'Es hat geschneit' : 'Es schneit'));
+        $text = sprintf('%s, ca. %s cm in 12 h', $wann, str_replace('.', ',', (string) round($summe, 1)));
+        if ($schnee['gemessen'] >= 0.1) {
+            $text .= sprintf(' (gemessen ca. %s cm in den letzten %s h)', str_replace('.', ',', (string) round($schnee['gemessen'], 1)), str_replace('.', ',', (string) round((float) $r['rueckblickStunden'], 1)));
+        }
+        $texte[] = $text;
         $arten[] = 'schnee';
         $stufe = 1;
     }
-    foreach (in_array('glaette', $erlaubt, true) ? $nah : [] as $h) {
-        if ($h['t'] !== null && $h['t'] <= $r['glaetteC'] && ($h['precip'] ?? 0) >= 0.1 && !(($h['snow'] ?? 0) > 0)) {
-            $texte[] = sprintf('Glätte möglich ab %s Uhr (%s °C mit Niederschlag)', uhrzeit(max($h['at'] - 3600, $jetzt)), str_replace('.', ',', (string) round($h['t'], 1)));
-            $arten[] = 'glaette';
-            $stufe = max($stufe, 1);
-            break;
+    if (in_array('glaette', $erlaubt, true)) {
+        foreach ($nah as $h) {
+            if ($h['t'] !== null && $h['t'] <= $r['glaetteC'] && ($h['precip'] ?? 0) >= 0.1 && !(($h['snow'] ?? 0) > 0)) {
+                $texte[] = sprintf('Glätte möglich ab %s Uhr (%s °C mit Niederschlag)', uhrzeit(max($h['at'] - 3600, $jetzt)), str_replace('.', ',', (string) round($h['t'], 1)));
+                $arten[] = 'glaette';
+                $stufe = max($stufe, 1);
+                break;
+            }
+        }
+        // Radar: gefrierender Regen oder Regen bei Frost (die Vorhersage hat es nicht gesehen)
+        foreach (in_array('glaette', $arten, true) ? [] : (array) ($mess['radar'] ?? []) as $s) {
+            if ($s['at'] + 900 <= $jetzt || $s['at'] >= $bis || $s['rr'] === null || $s['rr'] < 0.025 || radar_schnee($s) >= 1.0) {
+                continue;
+            }
+            $pt = $s['pt'] === null ? null : (int) round((float) $s['pt']);
+            if ($pt === 3 || ($s['t'] !== null && $s['t'] <= $r['glaetteC'])) {
+                $texte[] = sprintf('Glätte möglich ab %s Uhr (%s laut Radar)', uhrzeit(max($s['at'], $jetzt)), $pt === 3 ? 'gefrierender Regen' : str_replace('.', ',', (string) round((float) $s['t'], 1)) . ' °C mit Niederschlag');
+                $arten[] = 'glaette';
+                $stufe = max($stufe, 1);
+                break;
+            }
         }
     }
     foreach (in_array('warnung', $erlaubt, true) ? $warnungen : [] as $w) {
@@ -685,9 +772,22 @@ function pruefen(array $e): array
             $daten[$ort['name']] = ['fehler' => $x->getMessage()];
         }
     }
-    return mit_stand(function (array &$stand) use ($e, $r, $jetzt, $daten) {
+    // Radar (Nowcast) und Messung der letzten Stunden für alle Orte auf einmal; fehlen sie, zählt nur die Vorhersage
+    $orteListe = array_values((array) ($e['orte'] ?? []));
+    try {
+        $messung = wetter_messung(array_map(fn ($o) => [(float) $o['lat'], (float) $o['lon']], $orteListe), $jetzt);
+    } catch (Throwable $x) {
+        $messung = ['orte' => [], 'fehler' => 'Radar und Messung nicht erreichbar'];
+    }
+    foreach ($orteListe as $i => $ort) {
+        if (!isset($daten[$ort['name']]['fehler'])) {
+            $daten[$ort['name']]['mess'] = $messung['orte'][$i] ?? [];
+        }
+    }
+    return mit_stand(function (array &$stand) use ($e, $r, $jetzt, $daten, $messung) {
         $stand['letztePruefung'] = $jetzt;
-        $bericht = ['geprueft' => uhrzeit($jetzt, 'd.m.Y H:i'), 'orte' => []];
+        $stand['radar'] = $messung['fehler'] !== '' ? $messung['fehler'] : 'ok';
+        $bericht = ['geprueft' => uhrzeit($jetzt, 'd.m.Y H:i'), 'radar' => $stand['radar'], 'orte' => []];
         foreach ((array) ($e['orte'] ?? []) as $ort) {
             $name = (string) $ort['name'];
             $s = $stand['orte'][$name] ?? [];
@@ -711,7 +811,7 @@ function pruefen(array $e): array
             }
             unset($s['fehler'], $s['ohneDatenGemeldet']);
             $s['geprueft'] = $jetzt;
-            $lage = lage($d['stunden'], $d['warnungen'], $r, $jetzt, arten_ort($ort));
+            $lage = lage($d['stunden'], $d['warnungen'], $r, $jetzt, arten_ort($ort), (array) ($d['mess'] ?? []));
             $s['lage'] = $lage['text'] ?? 'ruhig';
             $alarm = $s['alarm'] ?? null;
             $objekte = implode(', ', array_column(objekte($ort), 'name'));

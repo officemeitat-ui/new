@@ -107,3 +107,16 @@ test('Server: neue Lage im laufenden Alarm, Runden, Stufe 1 abwesend, alte Codes
   assert.match(php, /'priority' => 2, 'tags' => \['white_check_mark'\]/, 'Nachricht ans Büro leise')
   assert.match(php, /probe_senden\(\$e, \$person, 3, false\)/, 'Probe von der Seite nur Push und E-Mail')
 })
+
+test('Neuschnee als Summe (26.11.2026): Rückblick und „sofort bei Radar“ gehen in die Datei, Standard 1 cm', () => {
+  assert.equal(ALARM_DEFAULTS.snowCm, 1)
+  assert.equal(ALARM_DEFAULTS.backHours, 3)
+  const f = alarmFile({ alarm: { key: 'k'.repeat(64), cronKey: 'p'.repeat(32), backHours: 5, radarNow: true }, locations: [], objects: [], employees: [], address: 'https://app.example.test/' })
+  assert.equal(f.regeln.rueckblickStunden, 5)
+  assert.equal(f.regeln.radarSofort, 1)
+  assert.equal(alarmFile({ alarm: { key: 'k'.repeat(64), cronKey: 'p'.repeat(32), backHours: 40 }, locations: [], objects: [], employees: [], address: 'x/' }).regeln.rueckblickStunden, 12, 'höchstens 12 Stunden zurück')
+  const php = read('wetter-alarm.php')
+  assert.match(php, /'rueckblickStunden' => 3, 'radarSofort' => 0, 'schneeCm' => 1,/, 'der Server kennt dieselben Vorgaben')
+  assert.match(php, /function schnee_menge\(/)
+  assert.match(read('wetter-lib.php'), /function wetter_messung\(array \$orte, int \$jetzt\): array/)
+})

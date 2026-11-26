@@ -221,7 +221,7 @@ test('Schnee-Alarm: Datei mit Objekten samt Adresse, Regeln als Zahlen, eigener 
   const alarm = { key: 'k', cronKey: 'c', ntfy: 'https://push.example.test', leadHours: '4', snowCm: '0.5', pauseHours: '6', escalateMin: '10', topics: { e1: 'wd-1', e2: 'wd-2', e3: 'wd-3' }, places: { Hallein: { active: false } } }
   const f = alarmFile({ alarm, locations: LOCS, objects: OBJECTS, employees: EMPLOYEES, address: 'https://app.example.test/' })
   assert.equal(f.ntfy, 'https://push.example.test')
-  assert.deepEqual(f.regeln, { vorlaufStunden: 4, schneeCm: 0.5, pauseStunden: 6, eskalationMinuten: 10, ruheVon: '', ruheBis: '', ruheAusnahmeStufe: 2, wiederholenMinuten: 3, wiederholungen: 5 })
+  assert.deepEqual(f.regeln, { vorlaufStunden: 4, rueckblickStunden: 3, radarSofort: 0, schneeCm: 0.5, pauseStunden: 6, eskalationMinuten: 10, ruheVon: '', ruheBis: '', ruheAusnahmeStufe: 2, wiederholenMinuten: 3, wiederholungen: 5 })
   assert.deepEqual(f.orte.map((o) => o.name), ['Salzburg'])
   assert.deepEqual(f.orte[0].objekte, [{ id: 'o1', name: 'Wohnanlage Lindenhof', adresse: 'Lindenweg 4, 5020 Salzburg' }, { id: 'o2', name: 'Praxis Kaltenbach', adresse: '' }])
   assert.deepEqual(f.orte[0].stufe1.map((p) => p.name), ['Anna Berger', 'Boris Kraus', 'Carla Dorn'])

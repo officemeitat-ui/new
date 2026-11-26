@@ -438,9 +438,15 @@ function aliasScore(header, aliases) {
   return best
 }
 
-/** Spalten eines Ziels zuordnen: { Feld: Spaltenindex } (jede Spalte höchstens einmal, bester Treffer zuerst). */
-export function matchColumns(kind, header) {
+/**
+ * Spalten eines Ziels zuordnen: { Feld: Spaltenindex } (jede Spalte höchstens einmal, bester Treffer zuerst). Mit den Zeilen
+ * gewinnt bei gleich gutem Namen die Spalte, die öfter gefüllt ist (orgaMAX-Kunden: in „ADDRESS“ steht die Anrede, die Straße in
+ * „STREET“).
+ */
+export function matchColumns(kind, header, rows = []) {
   const fields = TARGETS[kind]?.fields || {}
+  const sample = rows.slice(0, 50)
+  const filled = header.map((_, i) => sample.filter((r) => String(r?.[i] ?? '').trim() !== '').length)
   const pairs = []
   header.forEach((h, i) => {
     for (const [field, [label, ...aliases]] of Object.entries(fields)) {
@@ -448,7 +454,7 @@ export function matchColumns(kind, header) {
       if (s) pairs.push({ field, i, s })
     }
   })
-  pairs.sort((a, b) => b.s - a.s || a.i - b.i)
+  pairs.sort((a, b) => b.s - a.s || (sample.length ? filled[b.i] - filled[a.i] : 0) || a.i - b.i)
   const map = {}
   const used = new Set()
   for (const p of pairs) {
@@ -483,7 +489,7 @@ export function scoreTable(kind, table) {
 export function detectTable(table) {
   const scores = Object.fromEntries(Object.keys(TARGETS).map((k) => [k, scoreTable(k, table)]))
   const [kind, score] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0]
-  return score > 0 ? { kind, map: matchColumns(kind, table.columns), score, scores } : { kind: '', map: {}, score: 0, scores }
+  return score > 0 ? { kind, map: matchColumns(kind, table.columns, table.rows || []), score, scores } : { kind: '', map: {}, score: 0, scores }
 }
 
 // ---------------------------------------------------------------- Tabellen lesen

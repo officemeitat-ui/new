@@ -156,7 +156,7 @@ async function readDump(zip, manifestName, entry) {
     const known = dbTableKind(t.name)
     const d = known ? null : detectTable(table)
     const kind = known || (d && d.score >= 8 ? d.kind : '')
-    W.tables.push({ id: `t${++tableId}`, table, kind, map: kind ? matchColumns(kind, table.columns) : {}, db: true, known: !!known })
+    W.tables.push({ id: `t${++tableId}`, table, kind, map: kind ? matchColumns(kind, table.columns, table.rows || []) : {}, db: true, known: !!known })
   }
   // Dateien aus der Datenbank (z. B. Beleg-PDFs) für später merken
   for (const name of Object.keys(zip.files)) {
@@ -501,7 +501,7 @@ registerActions({
   'fim-kind': (el) => {
     const t = W.tables.find((x) => x.id === el.dataset.id)
     t.kind = el.value
-    t.map = t.kind ? matchColumns(t.kind, t.table.columns) : {}
+    t.map = t.kind ? matchColumns(t.kind, t.table.columns, t.table.rows || []) : {}
     renderModal()
   },
   'fim-col': (el) => {

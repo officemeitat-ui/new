@@ -250,6 +250,8 @@ function readForm() {
   Object.assign(d, {
     leadHours: Math.min(12, Math.max(1, n('al-lead', ALARM_DEFAULTS.leadHours))),
     snowCm: Math.max(0.1, n('al-snow', ALARM_DEFAULTS.snowCm)),
+    backHours: Math.min(12, Math.max(0, n('al-back', ALARM_DEFAULTS.backHours))),
+    radarNow: checked('al-radarnow'),
     escalateMin: Math.max(5, Math.round(n('al-escalate', ALARM_DEFAULTS.escalateMin))),
     repeatMin: Math.min(30, Math.max(0, Math.round(n('al-repeat', ALARM_DEFAULTS.repeatMin)))),
     repeats: Math.min(20, Math.max(0, Math.round(n('al-repeats', ALARM_DEFAULTS.repeats)))),
@@ -443,7 +445,7 @@ function placeOptions(i, set, d) {
   return `<div class="al-types"><span class="muted">Alarm bei:</span> ${types}</div>
     <details class="al-rules"${own ? ' open' : ''}><summary>Eigene Regeln für diesen Ort${own ? ' (eingestellt)' : ''}</summary>
       <div class="form-grid">
-        <label class="field"><span>Schneefall ab (cm je Stunde)</span><input type="number" id="al-p${i}-r-snow" step="0.1" min="0.1" value="${esc(r.snowCm ?? '')}" placeholder="wie oben: ${esc(d.snowCm)}"></label>
+        <label class="field"><span>Neuschnee ab (cm)</span><input type="number" id="al-p${i}-r-snow" step="0.1" min="0.1" value="${esc(r.snowCm ?? '')}" placeholder="wie oben: ${esc(d.snowCm)}"></label>
         <label class="field"><span>So weit voraus (Stunden)</span><input type="number" id="al-p${i}-r-lead" step="1" min="1" max="12" value="${esc(r.leadHours ?? '')}" placeholder="wie oben: ${esc(d.leadHours)}"></label>
         <label class="field"><span>Stufe 2 nach (Minuten)</span><input type="number" id="al-p${i}-r-esc" step="5" min="5" value="${esc(r.escalateMin ?? '')}" placeholder="wie oben: ${esc(d.escalateMin)}"></label>
         <label class="field"><span>Ruhezeit von</span><input type="time" id="al-p${i}-r-qfrom" value="${esc(r.quietFrom || '')}"></label>
@@ -527,8 +529,10 @@ function alarmModal() {
       ${whatsappSection(d)}
       <h3>Wann wecken</h3>
       <div class="form-grid">
-        <label class="field"><span>Schneefall ab (cm je Stunde)</span><input type="number" id="al-snow" step="0.1" min="0.1" value="${esc(d.snowCm)}"></label>
+        <label class="field"><span>Neuschnee ab (cm)</span><input type="number" id="al-snow" step="0.1" min="0.1" value="${esc(d.snowCm)}"><small class="muted">Zusammengezählt: was in den letzten Stunden gefallen ist (Messung) und was im Vorlauf kommt (Radar, Vorhersage). Nicht je Stunde: leichter Dauerschnee zählt mit.</small></label>
         <label class="field"><span>So weit voraus (Stunden)</span><input type="number" id="al-lead" step="1" min="1" max="12" value="${esc(d.leadHours)}"></label>
+        <label class="field"><span>Gefallenen Schnee mitzählen (Stunden zurück)</span><input type="number" id="al-back" step="1" min="0" max="12" value="${esc(d.backHours ?? ALARM_DEFAULTS.backHours)}"><small class="muted">z. B. 3: Schnee, der seit 3 Stunden gefallen ist, zählt mit, auch wenn keiner mehr kommt.</small></label>
+        <label class="check wide"><input type="checkbox" id="al-radarnow" ${d.radarNow ? 'checked' : ''}><span>Sofort wecken, sobald es laut Radar schneit (auch wenig)</span></label>
         <label class="field"><span>Stufe 2 nach (Minuten ohne „Bin wach“)</span><input type="number" id="al-escalate" step="5" min="5" value="${esc(d.escalateMin)}"></label>
         <label class="field"><span>Weckruf wiederholen alle (Minuten, 0 = aus)</span><input type="number" id="al-repeat" step="1" min="0" max="30" value="${esc(d.repeatMin ?? ALARM_DEFAULTS.repeatMin)}"><small class="muted">Bis jemand „Bin wach“ tippt, kommt der Push noch einmal (nur Push, ohne Kosten).</small></label>
         <label class="field"><span>Höchstens so oft wiederholen</span><input type="number" id="al-repeats" step="1" min="0" max="20" value="${esc(d.repeats ?? ALARM_DEFAULTS.repeats)}"></label>

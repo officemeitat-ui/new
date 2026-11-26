@@ -45,6 +45,92 @@ function wetter_api(): string
     return rtrim(getenv('WETTER_API') ?: 'https://dataset.api.hub.geosphere.at/v1', '/');
 }
 
+/** INCA-Analyse (Radar und Stationen) der letzten Stunden an mehreren Orten: [[lat, lon], …]; auf die volle Stunde gerundet (Zwischenspeicher). */
+function wetter_inca_url(array $punkte, int $jetzt): string
+{
+    $stunde = intdiv($jetzt, 3600) * 3600;
+    $q = array_map(fn ($p) => sprintf('lat_lon=%.4F,%.4F', $p[0], $p[1]), $punkte);
+    return wetter_api() . '/timeseries/' . WETTER_RASTER['inca'][0] . '?' . implode('&', $q) . '&parameters=' . implode(',', WETTER_RASTER['inca'][1])
+        . '&start=' . gmdate('Y-m-d\TH:i', $stunde - 6 * 3600) . '&end=' . gmdate('Y-m-d\TH:i', $stunde) . '&output_format=geojson';
+}
+
+/** Zeitreihen an mehreren Punkten (GeoJSON des Data Hub) → [['lat', 'lon', 'zeiten' => [s], 'werte' => [Parameter => [Wert|null]]], …]. */
+function wetter_punkte(?array $json, array $parameter): array
+{
+    $zeiten = array_map(fn ($z) => (int) strtotime((string) $z), (array) ($json['timestamps'] ?? []));
+    $out = [];
+    foreach ((array) ($json['features'] ?? []) as $f) {
+        $c = $f['geometry']['coordinates'] ?? null;
+        $p = $f['properties']['parameters'] ?? null;
+        if (!is_array($c) || !is_array($p) || !is_numeric($c[0] ?? null) || !is_numeric($c[1] ?? null)) {
+            continue;
+        }
+        $werte = [];
+        foreach ($parameter as $n) {
+            $d = $p[$n]['data'] ?? null;
+            $werte[$n] = is_array($d) ? array_map(fn ($v) => is_numeric($v) ? (float) $v : null, $d) : [];
+        }
+        $out[] = ['lat' => (float) $c[1], 'lon' => (float) $c[0], 'zeiten' => $zeiten, 'werte' => $werte];
+    }
+    return $out;
+}
+
+/** Der Punkt der Antwort, der einem Ort am nächsten liegt (höchstens ca. 5 km), sonst null. */
+function wetter_punkt_zu(array $punkte, float $lat, float $lon): ?array
+{
+    $best = null;
+    $abstand = 0.05 * 0.05;
+    foreach ($punkte as $p) {
+        $d = ($p['lat'] - $lat) ** 2 + (($p['lon'] - $lon) * cos(deg2rad($lat))) ** 2;
+        if ($d <= $abstand) {
+            $best = $p;
+            $abstand = $d;
+        }
+    }
+    return $best;
+}
+
+/**
+ * Radar und Messung für den Schnee-Alarm an mehreren Orten ([[lat, lon], …]), in derselben Reihenfolge:
+ * [['radar' => [['at', 'rr' (mm je 15 min), 'pt' (Art), 't' (°C)], …] (Nowcast, jetzt bis +3 h),
+ *   'gemessen' => [['at', 'rr' (mm je Stunde), 't'], …] (INCA-Analyse der letzten Stunden)], …], dazu 'fehler' (Text oder '').
+ * Was nicht kommt, bleibt leer; der Alarm rechnet dann nur mit der Vorhersage.
+ */
+function wetter_messung(array $orte, int $jetzt): array
+{
+    $out = array_fill(0, count($orte), ['radar' => [], 'gemessen' => []]);
+    $fehler = [];
+    if (!$orte) {
+        return ['orte' => $out, 'fehler' => ''];
+    }
+    foreach (array_chunk(array_keys($orte), 16) as $teil) {
+        $punkte = array_map(fn ($i) => $orte[$i], $teil);
+        [$status, $inhalt] = wetter_abruf(wetter_nowcast_url($punkte));
+        $liste = $status === 200 ? wetter_punkte(json_decode($inhalt, true), WETTER_NOWCAST_PUNKTE) : [];
+        if (!$liste) {
+            $fehler['radar'] = 'Radar (Nowcast) nicht erreichbar';
+        }
+        foreach ($teil as $i) {
+            $p = wetter_punkt_zu($liste, (float) $orte[$i][0], (float) $orte[$i][1]);
+            foreach ($p ? $p['zeiten'] : [] as $k => $at) {
+                $out[$i]['radar'][] = ['at' => $at, 'rr' => $p['werte']['rr'][$k] ?? null, 'pt' => $p['werte']['pt'][$k] ?? null, 't' => $p['werte']['t2m'][$k] ?? null];
+            }
+        }
+        [$status, $inhalt] = wetter_abruf(wetter_inca_url($punkte, $jetzt));
+        $liste = $status === 200 ? wetter_punkte(json_decode($inhalt, true), WETTER_RASTER['inca'][1]) : [];
+        if (!$liste) {
+            $fehler['gemessen'] = 'Messung (INCA) nicht erreichbar';
+        }
+        foreach ($teil as $i) {
+            $p = wetter_punkt_zu($liste, (float) $orte[$i][0], (float) $orte[$i][1]);
+            foreach ($p ? $p['zeiten'] : [] as $k => $at) {
+                $out[$i]['gemessen'][] = ['at' => $at, 'rr' => $p['werte']['RR'][$k] ?? null, 't' => $p['werte']['T2M'][$k] ?? null];
+            }
+        }
+    }
+    return ['orte' => $out, 'fehler' => implode(', ', array_values($fehler))];
+}
+
 /** Nowcast an mehreren Orten: [[lat, lon], …] */
 function wetter_nowcast_url(array $punkte): string
 {

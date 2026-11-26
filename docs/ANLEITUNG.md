@@ -1220,6 +1220,7 @@ Der Webspace prüft alle paar Minuten je Ort Vorhersage und Warnungen, auch nach
 5. Danach „Speichern und übertragen“; „Testalarm senden“ prüft alle Handys.
 
 > Tipp: Wer in Stufe 1 steht, ist in Rufbereitschaft (§ 20a AZG): wöchentlich wechseln oder schriftlich regeln.
+> Tipp: „Neuschnee ab“ zählt zusammen: gefallenen Schnee der letzten Stunden (Messung), Radar und Vorhersage. 1 cm heißt also nicht 1 cm je Stunde; wer bei jedem Schneefall geweckt werden will, hakt „Sofort wecken, sobald es laut Radar schneit“ an.
 > Tipp: Liegt die letzte Prüfung am Webspace über 30 Minuten zurück, den Cronjob prüfen. Für das Wiederholen des Weckrufs den Cronjob alle 2 bis 5 Minuten laufen lassen.
 > Tipp: Bestätigen geht ohne Anmeldung: Knopf „Bin wach“ im Push oder Link in der SMS.
 > Tipp: Unter „Eigene Regeln für diesen Ort“ z. B. einen Ort mit Hanglage früher wecken.

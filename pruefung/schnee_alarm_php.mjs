@@ -87,11 +87,42 @@ const SZENEN = {
   // Tag 3 (12.12.): erst nur Glätte in Salzburg, dann kommt Schnee dazu; Schnee in Obertrum (dort ist Stufe 1 abwesend)
   tag3a: { Salzburg: { wert: (at) => (at === hour(52) ? { t: -1, tp: 0.4, sf: 0 } : still()) }, Obertrum: { wert: snowAt([52]) } },
   tag3b: { Salzburg: { wert: (at) => (at === hour(52) ? { t: -1, tp: 0.4, sf: 0 } : at === hour(53) ? { t: -1, tp: 1.2, sf: 1.2 } : still()) }, Obertrum: { wert: snowAt([52]) } },
+  // Tag 4 (13.12.): leichter Dauerschnee (0,4 cm je Stunde, nie 1 cm in einer Stunde); Radar sieht Schnee, den die Vorhersage
+  // nicht hat (Hallein); Schnee ist schon gefallen, es kommt keiner mehr (Obertrum, nur die Messung); wenig Schnee laut Radar
+  // (Anif mit „sofort bei Radar“, Seekirchen ohne)
+  tag4: {
+    Salzburg: { wert: (at) => (at >= hour(76) && at <= hour(84) ? { t: -1, tp: 0.4, sf: 0.4 } : still()) },
+    Hallein: { radar: () => ({ rr: 0.3, pt: 5, t: -1 }) },
+    Obertrum: { inca: (at) => (at > hour(71) && at <= hour(74) ? { rr: 0.6, t: -2 } : { rr: 0, t: -2 }) },
+    Anif: { radar: () => ({ rr: 0.03, pt: 5, t: -1 }) },
+    Seekirchen: { radar: () => ({ rr: 0.03, pt: 5, t: -1 }) },
+  },
 }
+// wie Tag 4, aber Radar und Messung antworten nicht
+SZENEN.tag4ohne = { ...SZENEN.tag4, radarAus: true }
 const wetterAnfragen = []
 const wetter = createServer((req, res) => {
   const u = new URL(req.url, 'http://x')
   const [, szene, art] = u.pathname.split('/')
+  if (art === 'api') {
+    // Data Hub: Nowcast (15 min) bzw. INCA (1 h) an mehreren Orten; ohne Angabe trocken
+    const radar = u.pathname.includes('nowcast')
+    const quelle = radar ? 'radar' : 'inca'
+    const punkte = u.searchParams.getAll('lat_lon')
+    wetterAnfragen.push(`${szene}/${quelle}/${punkte.length}`)
+    if (!SZENEN[szene]) return res.writeHead(404, { 'Content-Type': 'application/json' }).end('{}')
+    if (SZENEN[szene].radarAus) return res.writeHead(503, { 'Content-Type': 'application/json' }).end('{}')
+    const zeiten = radar ? Array.from({ length: 6 * 24 * 4 }, (_, i) => T0 - 6 * 3600 + i * 900) : Array.from({ length: 7 }, (_, i) => Date.parse(`${u.searchParams.get('start')}:00Z`) / 1000 + i * 3600)
+    const namen = radar ? ['rr', 'pt', 't2m'] : ['RR', 'T2M']
+    const features = punkte.map((p) => {
+      const f = SZENEN[szene]?.[ORTE[p]]?.[quelle] || (() => (radar ? { rr: 0, pt: 255, t: 3 } : { rr: 0, t: 3 }))
+      const w = zeiten.map((at) => f(at))
+      const [lat, lon] = p.split(',').map(Number)
+      const daten = radar ? { rr: w.map((x) => x.rr), pt: w.map((x) => x.pt), t2m: w.map((x) => x.t) } : { RR: w.map((x) => x.rr), T2M: w.map((x) => x.t) }
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { parameters: Object.fromEntries(namen.map((n) => [n, { data: daten[n.replace('t2m', 't2m')] }])) } }
+    })
+    return res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ timestamps: zeiten.map((at) => new Date(at * 1000).toISOString().replace('.000Z', '+00:00')), features }))
+  }
   const ort = art === 'forecast' ? ORTE[u.searchParams.get('lat_lon')] : ORTE[`${u.searchParams.get('lat')},${u.searchParams.get('lon')}`]
   wetterAnfragen.push(`${szene}/${art}/${ort}`)
   const s = SZENEN[szene]?.[ort] || {}
@@ -162,6 +193,7 @@ const env = (jetzt, szene) => ({
   WETTER_JETZT: String(jetzt),
   WETTER_VORHERSAGE: `http://127.0.0.1:${WX}/${szene}/forecast`,
   WETTER_WARNUNGEN: `http://127.0.0.1:${WX}/${szene}/warnings`,
+  WETTER_API: `http://127.0.0.1:${WX}/${szene}/api`,
   WHATSAPP_API: `http://127.0.0.1:${WA}`,
   SMS_API: `http://127.0.0.1:${SMS}`,
   SMS_GATE_API: `http://127.0.0.1:${GATE}/3rdparty/v1`,
@@ -652,6 +684,25 @@ try {
   r = await api('wach', { method: 'POST', key: '', extra: `&t=${tokenOf(esk)}` })
   n = await neu()
   check('Das Büro bestätigt selbst: keine Nachricht ans Büro über die eigene Bestätigung', r.status === 200 && !n.push.length, JSON.stringify(n.push))
+  // ---------------------------------------------------------------- 14. Neuschnee als Summe, Radar und Messung (13.12.)
+  const lage4 = einstellungen({ schneeCm: 1, rueckblickStunden: 3 })
+  lage4.orte[4] = { ...lage4.orte[4], regeln: { radarSofort: 1 } }
+  r = await api('speichern', { method: 'POST', json: lage4 })
+  check('Einstellungen für Tag 4 übertragen (Neuschnee ab 1 cm, 3 Stunden zurück; Anif: sofort bei Radar)', r.status === 200)
+  await neu()
+  const t4 = hour(74) + 600 // 13.12. 02:10
+  b = await cron(t4, 'tag4')
+  n = await neu()
+  const zu = (x) => n.push.filter((p) => p.topic === x)
+  check('Leichter Dauerschnee (0,4 cm je Stunde, nie 1 cm in einer Stunde): zusammengezählt 1,2 cm im Vorlauf, Salzburg wird geweckt', zu('wd-dragan').length === 1 && /^Schneefall ab 03:00 Uhr/.test(b.orte?.Salzburg?.lage || ''), b.orte?.Salzburg?.lage)
+  check('Hallein: die Vorhersage sieht nichts, das Radar zeigt Schnee jetzt: geweckt mit „Es schneit (Radar)“', /^Es schneit \(Radar\), ca\. 3,9 cm in 12 h$/.test(b.orte?.Hallein?.lage || '') && n.push.some((p) => /^wd-h[12]$/.test(p.topic)), b.orte?.Hallein?.lage)
+  check('Obertrum: in den letzten 3 Stunden sind 1,8 cm gefallen, es kommt keiner mehr: trotzdem geweckt (Messung)', /^Es hat geschneit, ca\. 1,8 cm in 12 h \(gemessen ca\. 1,8 cm in den letzten 3 h\)$/.test(b.orte?.Obertrum?.lage || '') && zu('wd-jelena').length === 1, b.orte?.Obertrum?.lage)
+  check('Anif mit „sofort bei Radar“: wenig Schnee (0,4 cm) weckt; Seekirchen ohne diese Regel bleibt ruhig', zu('wd-anif').length === 1 && /^Es schneit \(Radar\)/.test(b.orte?.Anif?.lage || '') && zu('wd-petra').length === 0 && b.orte?.Seekirchen?.lage === 'ruhig', `${b.orte?.Anif?.lage} | ${b.orte?.Seekirchen?.lage}`)
+  check('Radar und Messung kommen mit einer Anfrage für alle Orte (Stand „ok“)', b.radar === 'ok' && wetterAnfragen.filter((a) => a === 'tag4/radar/5').length >= 1 && wetterAnfragen.filter((a) => a === 'tag4/inca/5').length >= 1, `${b.radar} ${wetterAnfragen.filter((a) => a.startsWith('tag4/')).join(',')}`)
+  b = await cron(t4 + 300, 'tag4ohne')
+  check('Radar und Messung fallen aus: der Alarm rechnet mit der Vorhersage weiter und sagt es im Bericht', /Radar \(Nowcast\) nicht erreichbar/.test(b.radar || '') && /^Schneefall ab 03:00 Uhr/.test(b.orte?.Salzburg?.lage || '') && b.orte?.Hallein?.lage === 'ruhig', `${b.radar} | ${b.orte?.Salzburg?.lage} | ${b.orte?.Hallein?.lage}`)
+  await neu()
+
   // alte Codes: ein zweiter Server zwei Tage später
   const spaet = spawn('php', ['-S', `127.0.0.1:${SPAET}`, '-t', R], { env: env(t3 + 2 * 86400, 'ruhig'), stdio: 'ignore' })
   await wait(900)

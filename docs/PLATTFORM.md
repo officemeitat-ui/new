@@ -1388,7 +1388,8 @@ Länger als rund 2½ Tage rechnet kein freier Datensatz von GeoSphere voraus; ei
 
 Damit niemand nachts selbst aufs Wetter schauen muss: Der Webspace prüft **alle 2 bis 5 Minuten** (Cronjob, auch wenn niemand die App offen hat; höchstens alle 10) je Ort, etwa Salzburg, Hallein oder Obertrum, Vorhersage und Warnungen. Ausgelöst wird bei:
 
-- Schneefall in den nächsten 3 Stunden (ab 0,3 cm je Stunde);
+- **Neuschnee ab 1 cm, zusammengezählt** (seit 26.11.2026): was in den letzten 3 Stunden gefallen ist (Messung INCA aus Radar und Stationen), was das **Radar** (Nowcast, alle 15 Minuten) jetzt und bis 3 Stunden voraus zeigt, und danach die Vorhersage. Nicht mehr „je Stunde“: Leichter Dauerschnee (z. B. 0,4 cm je Stunde) erreichte nie 1 cm in einer Stunde und weckte deshalb nicht. Wahlweise **„sofort, sobald es laut Radar schneit“**, auch bei wenig Schnee. Fallen Radar und Messung aus, rechnet der Alarm mit der Vorhersage weiter (Bericht des Cronjobs: „radar“);
+- Glätte laut Radar: gefrierender Regen oder Regen bei Frost;
 - Glätte, also Niederschlag bei Frost;
 - einer Schnee- oder Glatteiswarnung von GeoSphere.
 

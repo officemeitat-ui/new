@@ -454,3 +454,10 @@ test('Einkauf & Kasse aus orgaMAX: Lieferanten (CONTACTTYPE 3), Eingangsrechnung
   const again = mergePurchaseImport(data, buildImport(sources, [], { newId, now: NOW }).purchase, { system: 'orgaMAX', now: NOW })
   assert.deepEqual([again.added.suppliers, again.added.invoices, again.added.cash], [0, 0, 0])
 })
+
+test('orgaMAX-Kunden (CSV): „ADDRESS“ (dort steht die Anrede) verdrängt „STREET“ nicht, die öfter gefüllte Spalte gewinnt', () => {
+  const t = tableFromCsv('ID;ADDRESS;CUSTNO;NAME1;STREET;ZIPCODE;CITY\n1;Herr;10101;Muster GmbH;Hauptstraße 1;5400;Hallein\n2;;10102;Beispiel KG;Gasse 2;5020;Salzburg\n3;;10103;Test OG;Weg 3;5440;Golling\n')
+  const d = detectTable(t)
+  assert.equal(d.kind, 'customers')
+  assert.equal(t.columns[d.map.street], 'STREET')
+})
