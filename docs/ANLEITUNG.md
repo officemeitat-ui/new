@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 436 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 437 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (72)
+- [Verwaltung](#verwaltung) (73)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4948,6 +4948,24 @@ Die Matrix zeigt je Person und Art eine Ampel: grün gültig, gelb läuft in 30 
 5. Unter „Letzte Unterweisungen“ „Nachweis“ als PDF.
 
 > Tipp: „Inhalt als Standard für diese Art merken“ speichert den Text, z. B. euer Sicherheitsblatt: er steht beim nächsten Mal schon da und kommt auf den Nachweis.
+
+### Unterweisung am Handy (lesen, Fragen, Unterschrift)
+
+*In der App: Unterweisungen & Fristen*
+
+Mitarbeitende öffnen die Unterweisung über ihren Link von „Plan am Handy“, lesen sie in ihrer Sprache, sehen optional euer Video, beantworten Verständnisfragen und unterschreiben mit dem Finger. Fällig ist sie beim Eintritt und nach Ablauf (z. B. jährlich). Das Ergebnis kommt von selbst als Nachweis mit Unterschrift und PDF in die Liste.
+
+1. „Mehr“ → „Unterweisung am Handy“ öffnen und bei der Sicherheitsunterweisung „Bearbeiten“ klicken.
+2. „Vorlage Gebäudereinigung & Facility (Österreich) einsetzen“ (6 Sprachen, 15 Fragen) und an euren Betrieb anpassen.
+3. Optional das Video wählen (MP4) oder den Link eintragen.
+4. „Speichern und übertragen“: wer fällig ist, bekommt einen Push.
+5. Nachweise erscheinen von selbst; im Feld der Person „Nachweis“ für das PDF.
+
+> Tipp: Die Zeit dafür ist Arbeitszeit (§ 14 ASchG).
+> Tipp: Am Handy ist es eine schriftliche Unterweisung: die Einschulung im Objekt (Gefahren vor Ort) bleibt persönlich, z. B. mit „Unterweisung durchführen“.
+> Tipp: Inhalt mit eurer Evaluierung und der Sicherheitsfachkraft abstimmen.
+
+*Wer Unterweisungen & Fristen bearbeiten darf*
 
 ### Zur Unterweisung auffordern (WhatsApp)
 

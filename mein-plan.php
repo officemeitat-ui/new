@@ -1683,6 +1683,36 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
     json_ausgabe(200, ['personen' => $personen, 'benachrichtigt' => $benachrichtigt]);
 }
 
+/**
+ * Hinweis oben auf der Seite: offene Unterweisungen am Handy (unterweisung.php, Datei unterweisungen.json von der App).
+ * Am Handy schon erledigt (unterweisungen-stand.json) zählt, bis die App den neuen Stand schickt.
+ */
+function uw_hinweis_html(string $hash): string
+{
+    if (!is_file(__DIR__ . '/unterweisung.php')) {
+        return '';
+    }
+    $u = json_lesen(speicher() . '/unterweisungen.json');
+    $erledigt = (array) (json_lesen(speicher() . '/unterweisungen-stand.json')['erledigt'] ?? []);
+    $namen = [];
+    foreach ((array) ($u['personen'][$hash] ?? []) as $z) {
+        $def = $u['arten'][$z['art'] ?? ''] ?? null;
+        if (!is_array($def) || !in_array($z['stand'] ?? '', ['fehlt', 'abgelaufen'], true)) {
+            continue;
+        }
+        $fertig = (int) ($erledigt[$hash . '|' . $z['art']] ?? 0);
+        if ($fertig && (new DateTimeImmutable('@' . $fertig))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d') > (string) ($z['datum'] ?? '')) {
+            continue;
+        }
+        $namen[] = (string) (($def['texte'][sprache()]['titel'] ?? '') ?: ($def['name'] ?? ''));
+    }
+    if (!$namen) {
+        return '';
+    }
+    $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
+    return '<div class="mit mit-offen"><p class="mit-kopf"><b>' . th('uw_plan_hinweis', ['namen' => $h(implode(', ', $namen))]) . '</b></p><p><a class="knopf" href="unterweisung.php">' . th('uw_plan_knopf') . '</a></p></div>';
+}
+
 // ---------------------------------------------------------------- Seite für Mitarbeitende
 
 if (!$e) {
@@ -2667,7 +2697,7 @@ $mattenFahrer = json_lesen((getenv('MATTEN_ORDNER') ?: ordner()) . '/matten/fahr
 $mattenTouren = empty($mattenFahrer['entfernt']) ? array_filter((array) ($mattenFahrer['touren'] ?? []), fn ($d) => is_string($d) && $d >= tag_plus(heute(), -1) && $d <= tag_plus(heute(), 7)) : [];
 $mattenHtml = $mattenTouren && is_file(__DIR__ . '/mattentour.php') ? '<p class="summe">' . th('mt_plan_text') . '</p><p><a class="knopf" href="mattentour.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '') . '">' . th('mt_plan_oeffnen') . '</a></p>' : '';
 $hier = 'mein-plan.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '');
-html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . mit_html($hash, $code) . $mattenHtml
+html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . uw_hinweis_html($hash) . mit_html($hash, $code) . $mattenHtml
     . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}h3.wuensche-kopf{font-size:1rem;margin:.6rem 0 .2rem}ul.wuensche{list-style:none;padding-left:0;margin-top:0}.wuensche li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.3rem .6rem;margin:.3rem 0;padding:.3rem 0;border-bottom:1px solid #e3eaef}.wuensche form{margin:0}.wuensche button{width:auto;margin:0;padding:.35rem .9rem;font-size:1rem}input[type=text]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;background:#fff;color:inherit}'
     . 'details.ck{border:1px solid #c9d6df;border-radius:8px;padding:.2rem .7rem;margin:.4rem 0}details.ck>summary{font-weight:600}.ck-p{border-top:1px solid #e3eaef;padding:.35rem 0}.ck-p label.haken{align-items:flex-start;margin:.2rem 0}.ck-p label.haken input{flex:0 0 auto;margin-top:.15rem}.ck-nein{background:#fff8e6;border-radius:6px;padding-left:.3rem}.ck-foto label{font-weight:400;margin:.3rem 0 .2rem;font-size:.95rem}details.ck-nm{margin:.1rem 0}details.ck-nm summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.ck-nm label{font-weight:400;margin:.2rem 0}details.ck-nm input[type=text]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;margin-top:.4rem}.ck-knoepfe{display:flex;gap:.5rem;flex-wrap:wrap}.ck-knoepfe button{flex:1 1 9rem}button.zweit{background:#fff;color:#0a5a96;border:2px solid #0a5a96}.ck-liste{list-style:none;padding-left:0}.ck-liste li{margin:.25rem 0}.ck-liste .ck-ok>span:first-child{color:#4e7a1e}.ck-liste .ck-nein>span:first-child{color:#b3261e}'
     . '.mitteilungen h2{margin-top:1rem}.mit{border:1px solid #c9d6df;border-radius:8px;padding:.6rem .8rem;margin:.6rem 0}.mit h3{font-size:1.05rem;margin:0 0 .2rem}.mit-offen{border:2px solid #0a5a96}.mit-erinnert{background:#fff8e6}.mit-kopf{margin:.1rem 0 .4rem;color:#13232f}.mit-text{margin:.3rem 0}.mit-wichtig{background:#fce8e6!important;color:#b3261e!important}.mit-erinnerung{background:#fdf0d5!important;color:#6b4100!important}.mit-de summary{font-weight:400;color:#0a5a96;font-size:.95rem}.mit-de div{background:#f3f6f8;border-radius:8px;padding:.3rem .6rem}.mit-anhang{color:#0a5a96;font-weight:600}.mit .ok{margin:.4rem 0 0}</style>'

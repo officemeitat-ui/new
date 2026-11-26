@@ -81,7 +81,8 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 const webspace = [
   ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
   // mein-plan-tablet.js: Zifferntasten und Uhr der Stempeluhr am Tablet (mein-plan.php?tablet=1)
-  ...(appConfig.staffPortal !== false ? ['mein-plan.php', 'mein-plan-tablet.js'] : []),
+  // unterweisung.php: Unterweisung am Handy (lesen, Fragen, Unterschrift mit kunden-unterschrift.js), derselbe Link wie Plan am Handy
+  ...(appConfig.staffPortal !== false ? ['mein-plan.php', 'mein-plan-tablet.js', 'unterweisung.php', ...(appConfig.customerPortal === false ? ['kunden-unterschrift.js'] : [])] : []),
   // Kundenbereich (kunden.php): Link für Kunden; wetter-foto.js verkleinert die Fotos der Reklamation,
   // kunden-unterschrift.js nimmt die Unterschrift bei „Angebot online annehmen“ auf, aushang-texte.php: Texte des
   // Aushangs (QR) im Objekt auf Deutsch und Englisch, zusatz-texte.php: Texte von „Zusatzleistung anfragen“

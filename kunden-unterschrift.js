@@ -1,4 +1,4 @@
-// Angebot online annehmen (kunden.php?a=…): Unterschrift mit Finger, Stift oder Maus. Die Striche gehen
+// Angebot online annehmen (kunden.php?a=…) und Unterweisung am Handy (unterweisung.php): Unterschrift mit Finger, Stift oder Maus. Die Striche gehen
 // als Pfad („M12 30L14 31…“, ganze Zahlen im Feld 600 × 200) im versteckten Feld mit, kein Bild. Ohne
 // JavaScript bleibt das Feld verborgen; die Unterschrift ist freiwillig.
 ;(() => {

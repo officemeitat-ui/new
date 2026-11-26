@@ -110,7 +110,7 @@ test('Texte: Wochentage und Datum je Sprache, nicht deutsch (außer Deutsch)', (
 
 test('Texte: Übersetzungen unterscheiden sich vom Deutschen (keine vergessenen Kopien)', () => {
   // gleich wie Deutsch dürfen nur Namen, Zahlen und Platzhalter sein
-  const same = new Set(['dezimal', 'feiertag', 'push_antrag', 'termin', 'art_material', 'push_material_abgelehnt', 'w_sand', 'ics_termin'])
+  const same = new Set(['dezimal', 'feiertag', 'push_antrag', 'termin', 'art_material', 'push_material_abgelehnt', 'w_sand', 'ics_termin', 'uw_video'])
   for (const [lang, t] of Object.entries(TEXTE)) {
     if (lang === 'de') continue
     const copies = Object.keys(DE).filter((k) => typeof DE[k] === 'string' && t[k] === DE[k] && !same.has(k) && /[a-zäöüß]{4}/i.test(DE[k]) && !/^(.{0,3}|[A-Z]+)$/.test(DE[k]))

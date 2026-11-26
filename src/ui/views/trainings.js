@@ -7,7 +7,11 @@
 import { formatDate, todayISO } from '../../core/dates.js'
 import { toCSV } from '../../core/reports.js'
 import { addImported, dueList, emptyTrainings, openRequest, requestText, isRequired, KINDS, matrix, parseRecordTable, sessionRecords, STATE_TEXT, statusOf, TRAINING_DEFAULTS, typesOf, untilOf, addMonths } from '../../core/trainings.js'
-import { sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
+import { hashIndex, sha256Hex } from '../../core/staffplan.js'
+import { langInfo, langOf, sourceKey } from '../../core/sprachen.js'
+import { DECL_DEFAULT, LANG_IDS, languageStatus, onlineOf, onlineTypes, onlineVersion, parseContent, parseQuiz, passCount, resultRecords, snapshot, webAssignments, webDefinition } from '../../core/unterweisung-online.js'
+import { onlineProofDocument, onlineProofName, sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
+import { portalSettings } from '../staffplan.js'
 import { app, canEdit, closeModal, confirmStep, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { clearImportUndo, importUndoBanner, recordImportUndo, setImportUndoLabel } from '../import-undo.js'
 import { registerTodo } from '../modals/todo.js'
@@ -52,6 +56,7 @@ function ownTypes() {
 // ---------------------------------------------------------------- Ansicht
 
 function trainingsView() {
+  syncOnline()
   const today = todayISO()
   const t = types()
   const all = matrix({ doc: doc(), employees: app.data.employees, today })
@@ -89,11 +94,12 @@ function trainingsView() {
           ed && { label: 'Aufforderungen senden', icon: ICON.chat, action: 'tr-ask-open', hint: 'wer etwas nachholen muss, per WhatsApp' },
           ed && { label: 'Aus Excel einfügen', icon: ICON.upload, action: 'tr-import-open', hint: 'bisherige Liste: Name und Datum' },
           ed && { label: 'Arten verwalten', icon: ICON.gear, action: 'tr-types-open', hint: 'Unterweisungen, Kurse, Fristen' },
+          ed && { label: 'Unterweisung am Handy', icon: ICON.chat, action: 'uo-open', hint: 'lesen, Fragen, Unterschrift; jährlich' },
           { heading: 'Export' },
           { label: 'Übersicht (CSV)', icon: ICON.download, action: 'tr-csv', mail: true },
         ],
       })}</div></div>
-    ${importUndoBanner('trainings')}<div class="impact-stats tc-stats">${tile('abgelaufen', n('abgelaufen'), n('abgelaufen') ? 'err' : '')}${tile('fehlt (Pflicht)', n('fehlt'), n('fehlt') ? 'err' : '')}${tile('läuft in 30 Tagen ab', n('bald'))}${tile('Personen', all.length)}</div>
+    ${onlineBanner()}${importUndoBanner('trainings')}<div class="impact-stats tc-stats">${tile('abgelaufen', n('abgelaufen'), n('abgelaufen') ? 'err' : '')}${tile('fehlt (Pflicht)', n('fehlt'), n('fehlt') ? 'err' : '')}${tile('läuft in 30 Tagen ab', n('bald'))}${tile('Personen', all.length)}</div>
     <div class="filters">${teams.length > 1 ? `<label class="field inline"><span>Team</span><select id="tr-team" data-change="tr-team">${options(teams.map((x) => [x, x]), team, { empty: 'alle' })}</select></label>` : ''}
       <label class="field inline"><span>Suche</span><input type="search" id="tr-search" value="${esc(app.ui.trSearch || '')}" data-input="tr-search" placeholder="Name"></label>
       <label class="check"><input type="checkbox" id="tr-only" ${app.ui.trOnly ? 'checked' : ''} data-change="tr-only"><span>nur mit Handlungsbedarf</span></label></div>
@@ -144,7 +150,7 @@ function recordModal(c, m) {
       </div>
       ${type?.law || type?.note ? `<p class="note">${esc([type.law, type.note].filter(Boolean).join(' · '))}</p>` : ''}
       ${ed && emp && type && s && ASK_STATES.includes(s.state) ? `<section><h3>Aufforderung</h3>${askLine(emp, type)}<div class="actions">${askButtons(emp, type)}</div></section>` : ''}
-      ${history.length ? `<section><h3>Bisher</h3><ul class="tc-list">${history.map((r) => `<li>${short(r.date)}${untilOf(r, type) ? ` · gültig bis ${short(untilOf(r, type))}` : ''}${r.note ? ` · ${esc(r.note)}` : ''}${r.signature ? ' <span class="pill ok">unterschrieben</span>' : ''} <span class="muted">${esc(r.by || '')}</span>${ed ? ` <button class="btn small ghost" data-action="tr-record-delete" data-id="${esc(r.id)}">${app.ui.confirm === `tr-del:${r.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</li>`).join('')}</ul></section>` : ''}`,
+      ${history.length ? `<section><h3>Bisher</h3><ul class="tc-list">${history.map((r) => `<li>${r.online ? `<button class="btn small" data-action="uo-pdf" data-id="${esc(r.id)}">Nachweis</button> ` : ''}${short(r.date)}${untilOf(r, type) ? ` · gültig bis ${short(untilOf(r, type))}` : ''}${r.note ? ` · ${esc(r.note)}` : ''}${r.signature ? ' <span class="pill ok">unterschrieben</span>' : ''} <span class="muted">${esc(r.by || '')}</span>${ed ? ` <button class="btn small ghost" data-action="tr-record-delete" data-id="${esc(r.id)}">${app.ui.confirm === `tr-del:${r.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</li>`).join('')}</ul></section>` : ''}`,
     foot: `<button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<div class="actions"><button class="btn primary" data-action="tr-record-save">Eintragen</button></div>' : ''}`,
   })
 }
@@ -549,4 +555,340 @@ registerTodo({
           : `<div class="todo-item"><span class="flag warning">${x.list.length}</span><div class="todo-text"><strong>${esc(x.type.name)}</strong>: ${esc(x.list.slice(0, 5).map((d) => d.emp.name).join(', '))}${x.list.length > 5 ? ' …' : ''}<br><span class="muted">abgelaufen oder fehlend</span></div><button class="btn small primary" data-action="tr-session-open" data-type="${esc(x.type.id)}">Unterweisung</button></div>`,
       )
       .join(''),
+})
+
+// ---------------------------------------------------------------- Unterweisung am Handy (unterweisung.php)
+// Je Art: Texte je Sprache (Vorlage Gebäudereinigung Österreich), Verständnisfragen, Erklärung, Video. Die App überträgt
+// Arten und Zuordnung (wer fällig ist) an den Webspace, holt die Ergebnisse ab und trägt sie als Nachweis ein.
+// Rechenkern: core/unterweisung-online.js, Seite: unterweisung.php.
+
+const OS = { at: 0, running: false, error: '', last: null, missing: [] }
+const portalOn = () => {
+  const p = portalSettings()
+  return !!(p.enabled && p.key)
+}
+const CHUNK = 4 * 1024 * 1024
+
+/** Aufruf von unterweisung.php mit dem Schlüssel von „Plan am Handy“; raw: Rohdaten (Video). */
+async function uwCall(aktion, body, { raw = null, type = '', extra = '' } = {}) {
+  const post = body !== undefined || raw
+  const res = await fetch(`unterweisung.php?aktion=${aktion}${extra}`, {
+    method: post ? 'POST' : 'GET',
+    headers: {
+      'X-Schluessel': portalSettings().key,
+      ...(raw ? { 'Content-Type': type } : post ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: raw || (body === undefined ? undefined : JSON.stringify(body)),
+    cache: 'no-store',
+  })
+  const json = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null
+  if (!json) throw new Error('unterweisung.php fehlt am Webspace (Paket neu hochladen).')
+  if (res.status === 403) throw new Error('Der Webspace kennt einen anderen Schlüssel: unter „Plan am Handy“ mitarbeiter.json neu hochladen.')
+  if (!res.ok) throw new Error(json.fehler || `Antwort ${res.status}`)
+  return json
+}
+
+/** Fassungen, die weder ein Eintrag braucht noch gerade gilt, nach 3 Tagen weg (sie sind groß). */
+function pruneVersions(d) {
+  const keep = new Set([...d.records.map((r) => r.online?.version).filter(Boolean), ...onlineTypes(d).map(onlineVersion)])
+  const limit = new Date(Date.now() - 3 * 86400e3).toISOString()
+  for (const [v, x] of Object.entries(d.versions || {})) if (!keep.has(v) && (x.at || '') < limit) delete d.versions[v]
+}
+
+/**
+ * Ergebnisse vom Webspace eintragen, dann Arten, Zuordnung und Namen übertragen (übernommene Ergebnisse löscht der Webspace).
+ * Höchstens alle 3 Minuten, force: sofort. Liefert { eingetragen, arten, personen, push, videosFehlen } oder null.
+ */
+export async function syncOnline({ force = false } = {}) {
+  const d = doc()
+  if (!editable() || OS.running || !portalOn() || (!force && Date.now() - OS.at < 170e3)) return null
+  const types = onlineTypes(d)
+  if (!types.length && !d.onlineSent && !force) return null
+  OS.running = true
+  OS.at = Date.now()
+  let added = 0
+  try {
+    const p = portalSettings()
+    const [st, index] = await Promise.all([uwCall('status'), hashIndex(p)])
+    const r = resultRecords(d, st.ergebnisse || [], {
+      empOf: (h) => empOf(index.get(h)),
+      newId: () => uid('u'),
+      types: typesOf(d),
+    })
+    d.versions ||= {}
+    for (const t of types) d.versions[onlineVersion(t)] ||= snapshot(t, { at: nowIso() })
+    if (r.records.length) d.records.push(...r.records)
+    added = r.records.filter((x) => !x.online?.coveredBy).length
+    pruneVersions(d)
+    const hashes = new Map()
+    for (const e of active()) if (p.codes?.[e.id]) hashes.set(e.id, await sha256Hex(p.codes[e.id]))
+    const personen = webAssignments({
+      doc: d,
+      employees: app.data.employees,
+      hashOf: (id) => hashes.get(id) || null,
+      today: todayISO(),
+    })
+    const namen = [...hashes]
+      .filter(([, h]) => personen[h])
+      .map(([id, h]) => ({
+        hash: h,
+        name: empOf(id)?.name || '',
+        ntfy: p.topics?.[id] || '',
+        sprache: langOf(empOf(id)),
+      }))
+    const res = await uwCall('uebertragen', {
+      arten: types.map((t) => webDefinition(t, { types: typesOf(d) })),
+      personen,
+      namen,
+      uebernommen: r.taken,
+    })
+    d.onlineSent = types.length > 0
+    persist()
+    OS.last = {
+      eingetragen: added,
+      arten: res.arten,
+      personen: res.personen,
+      push: res.push || 0,
+      at: Date.now(),
+    }
+    OS.missing = res.videosFehlen || []
+    OS.error = ''
+  } catch (err) {
+    OS.error = err.message || String(err)
+  } finally {
+    OS.running = false
+  }
+  if (added && app.ui.view === 'unterweisungen' && !app.ui.modal) renderNow()
+  return OS.last
+}
+
+function onlineBanner() {
+  if (!onlineTypes(doc()).length) return ''
+  if (!portalOn()) return '<div class="banner warn-banner"><p><strong>Unterweisung am Handy:</strong> „Plan am Handy“ ist aus. Ohne persönlichen Link sehen Mitarbeitende die Unterweisung nicht.</p></div>'
+  if (OS.error) return `<div class="banner warn-banner"><p><strong>Unterweisung am Handy:</strong> ${esc(OS.error)}</p></div>`
+  if (OS.missing.length) return '<div class="banner warn-banner"><p><strong>Unterweisung am Handy:</strong> Ein Video fehlt am Webspace. Bitte unter „Unterweisung am Handy“ das Video neu wählen und speichern.</p></div>'
+  return ''
+}
+
+// Editor: m = { typeId, draft, lang, video (gewählte Datei), progress }
+function draftOf(m) {
+  if (!m.draft) {
+    const type = typeOf(m.typeId)
+    m.draft = structuredClone(onlineOf(type))
+    m.lang = 'de'
+  }
+  return m.draft
+}
+
+function readOnline() {
+  const m = app.ui.modal
+  const d = draftOf(m)
+  if (!document.getElementById('uo-content')) return m
+  d.on = checked('uo-on')
+  d.pass = Math.min(100, Math.max(0, Math.round(Number(val('uo-pass')) || 0)))
+  d.videoLink = val('uo-link').trim()
+  d.covers = checkedValues('uo-cover')
+  d.texts[m.lang] = {
+    title: val('uo-title').trim(),
+    content: val('uo-content'),
+    quiz: val('uo-quiz'),
+    decl: val('uo-decl').trim(),
+  }
+  if (!d.texts[m.lang].content.trim() && !d.texts[m.lang].quiz.trim() && m.lang !== 'de') delete d.texts[m.lang]
+  const f = document.getElementById('uo-video')?.files?.[0]
+  if (f) m.video = f
+  return m
+}
+
+function onlineListModal() {
+  const list = types().filter((t) => (t.kind || 'unterweisung') !== 'dokument')
+  const rows = list
+    .map((t) => {
+      const o = onlineOf(t)
+      const st = languageStatus(o)
+      const q = parseQuiz(o.texts.de?.quiz).questions.length
+      const langs = st.filter((x) => x.ok).map((x) => langInfo(x.id).label)
+      return `<tr><td><strong>${esc(t.name)}</strong>${t.law ? `<br><span class="muted">${esc(t.law)}</span>` : ''}</td>
+        <td>${o.on && st[0].ok ? '<span class="pill ok">am Handy</span>' : '<span class="pill">aus</span>'}</td>
+        <td>${st[0].ok ? `${esc(langs.join(', '))}<br><span class="muted">${plural(q, 'Frage', 'Fragen')}${o.video?.name ? ' · Video' : o.videoLink ? ' · Video-Link' : ''}</span>` : '<span class="muted">noch kein Inhalt</span>'}</td>
+        <td class="actions-cell"><button class="btn small" data-action="uo-edit" data-type="${esc(t.id)}">Bearbeiten</button></td></tr>`
+    })
+    .join('')
+  const last = OS.last
+    ? `Zuletzt abgeglichen um ${new Date(OS.last.at).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}: ${plural(OS.last.personen || 0, 'Person', 'Personen')} mit Unterweisung am Handy${OS.last.eingetragen ? `, ${OS.last.eingetragen} neu eingetragen` : ''}${OS.last.push ? `, ${plural(OS.last.push, 'Erinnerung', 'Erinnerungen')} per Push` : ''}.`
+    : ''
+  return modalFrame({
+    title: 'Unterweisung am Handy',
+    wide: true,
+    body: `<p class="note">Mitarbeitende öffnen die Unterweisung über ihren persönlichen Link („Plan am Handy“), lesen sie in ihrer Sprache, sehen optional ein Video, beantworten Verständnisfragen und unterschreiben mit dem Finger. Fällig ist sie wie hier eingestellt: beim Eintritt (fehlt) und nach Ablauf, z. B. jährlich. Die Ergebnisse kommen von selbst als Nachweis in die Liste (mit Unterschrift und PDF).</p>
+      ${!portalOn() ? '<div class="banner warn-banner"><p>„Plan am Handy“ ist aus bzw. nicht eingerichtet (Mitarbeitende → Plan am Handy). Ohne persönlichen Link sehen Mitarbeitende nichts.</p></div>' : ''}
+      ${OS.error ? `<div class="banner warn-banner"><p>${esc(OS.error)}</p></div>` : ''}
+      <div class="table-wrap"><table class="data"><thead><tr><th>Art</th><th>Stand</th><th>Inhalt</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${last ? `<p class="muted">${esc(last)}</p>` : ''}
+      <p class="note">Rechtlich (§ 14 ASchG): Die Unterweisung muss verständlich sein (bei Bedarf in der Muttersprache), in der Arbeitszeit stattfinden und nachweislich erfolgen. Am Handy ist sie eine schriftliche Unterweisung; laut Arbeitsinspektion ergänzt sie die persönliche Unterweisung am Arbeitsplatz (Einschulung im Objekt), ersetzt sie aber nicht. Den Inhalt mit eurer Evaluierung und der Sicherheitsfachkraft abstimmen.</p>`,
+    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${portalOn() ? '<button class="btn" data-action="uo-sync">Jetzt abgleichen</button>' : ''}</div>`,
+  })
+}
+registerModal('tr-online', onlineListModal, { module: MODULE })
+
+function onlineEditModal() {
+  const m = app.ui.modal
+  const type = typeOf(m.typeId)
+  if (!type)
+    return modalFrame({
+      title: 'Unterweisung am Handy',
+      body: '<p>Diese Art gibt es nicht mehr.</p>',
+      foot: '<button class="btn" data-action="close-modal">Schließen</button>',
+    })
+  const d = draftOf(m)
+  const st = languageStatus(d)
+  const cur = st.find((x) => x.id === m.lang)
+  const t = d.texts[m.lang] || {}
+  const q = parseQuiz(d.texts.de?.quiz).questions.length
+  const others = types().filter((x) => x.id !== type.id && (x.kind || 'unterweisung') !== 'dokument')
+  const tabs = LANG_IDS.map((id) => {
+    const x = st.find((s) => s.id === id)
+    const mark = id === 'de' ? (x.ok ? '✓' : '!') : x.ok ? '✓' : d.texts[id] ? '!' : '–'
+    return `<button type="button" class="btn small ${id === m.lang ? 'primary' : ''}" data-action="uo-lang" data-lang="${id}" aria-pressed="${id === m.lang}">${esc(langInfo(id).label)} ${mark}</button>`
+  }).join(' ')
+  return modalFrame({
+    title: `Unterweisung am Handy: ${type.name}`,
+    subtitle: `${plural(q, 'Frage', 'Fragen')} · gültig ${Number(type.months) > 0 ? `${type.months} Monate` : 'ohne Ablauf'}`,
+    wide: true,
+    body: `<label class="check"><input type="checkbox" id="uo-on" ${d.on ? 'checked' : ''}><span>Am Handy durchführen (über „Plan am Handy“)</span></label>
+      <p><button class="btn small" data-action="uo-template">${app.ui.confirm === 'uo-template' ? 'Eigene Texte ersetzen? Zum Bestätigen nochmals klicken' : 'Vorlage Gebäudereinigung &amp; Facility (Österreich) einsetzen'}</button> <span class="muted">alle 6 Sprachen, 20 Abschnitte, 15 Fragen; danach an euren Betrieb anpassen</span></p>
+      <div class="uo-tabs" role="group" aria-label="Sprache">${tabs}</div>
+      ${m.lang !== 'de' ? `<p class="note">${esc(langInfo(m.lang).label)}: gleiche Fragen in derselben Reihenfolge wie auf Deutsch, die richtige Antwort an derselben Stelle. Leer lassen = die Person sieht Deutsch mit dem Hinweis, im Büro nachzufragen.</p>` : ''}
+      <div class="form-grid">
+        <label class="field wide"><span>Titel</span><input type="text" id="uo-title" value="${esc(t.title || '')}" placeholder="${esc(m.lang === 'de' ? type.name : d.texts.de?.title || type.name)}"></label>
+        <label class="field wide"><span>Inhalt</span><textarea id="uo-content" rows="14" placeholder="Einleitung …&#10;&#10;## Überschrift eines Abschnitts&#10;- Punkt&#10;- Punkt">${esc(t.content || '')}</textarea><small class="muted">„## “ beginnt einen Abschnitt, „- “ ist ein Punkt einer Liste, Leerzeile = neuer Absatz.</small></label>
+        <label class="field wide"><span>Verständnisfragen</span><textarea id="uo-quiz" rows="10" placeholder="? Frage&#10;+ richtige Antwort&#10;- falsche Antwort&#10;- falsche Antwort">${esc(m.lang === 'de' ? d.texts.de?.quiz || '' : t.quiz || '')}</textarea><small class="muted">„? “ Frage, „+ “ richtig (genau eine), „- “ falsch. Am Handy steht die Reihenfolge gemischt, die Lösung bleibt am Webspace.</small></label>
+        <label class="field wide"><span>Erklärung zum Unterschreiben</span><textarea id="uo-decl" rows="3" placeholder="${esc(m.lang === 'de' ? DECL_DEFAULT : d.texts.de?.decl || DECL_DEFAULT)}">${esc(t.decl || '')}</textarea></label>
+      </div>
+      ${cur?.errors.length ? `<p class="err-text">${esc(cur.errors.slice(0, 6).join(' '))}</p>` : cur?.ok ? `<p class="muted">${esc(langInfo(m.lang).label)}: ${plural(cur.sections, 'Abschnitt', 'Abschnitte')}, ${plural(cur.questions, 'Frage', 'Fragen')}.</p>` : ''}
+      <div class="form-grid">
+        <label class="field"><span>Bestanden ab (% richtig)</span><input type="number" id="uo-pass" min="0" max="100" step="5" value="${esc(d.pass)}"><small class="muted">${q ? `${passCount(q, d.pass)} von ${q} Fragen` : 'ohne Fragen: gleich zur Unterschrift'}</small></label>
+        <label class="field"><span>Video-Datei (MP4, optional)</span><input type="file" id="uo-video" accept="video/mp4,video/webm"><small class="muted">${d.video?.name ? `jetzt: ${esc(d.video.name)} (${Math.round((d.video.size || 0) / 1048576)} MB)` : 'wird am Webspace abgelegt, höchstens 400 MB'}${m.video ? ` · neu: ${esc(m.video.name)}` : ''}</small>${d.video?.name ? '<button type="button" class="btn small ghost" data-action="uo-video-del">Video entfernen</button>' : ''}</label>
+        <label class="field"><span>oder Video-Link (https, optional)</span><input type="url" id="uo-link" value="${esc(d.videoLink || '')}" placeholder="https://…"><small class="muted">z. B. euer Video auf der Webseite; öffnet sich in einer neuen Seite</small></label>
+      </div>
+      ${others.length ? `<section><h3>Erledigt damit auch</h3><p class="muted">Wer diese Unterweisung am Handy macht, bekommt auch diese Einträge (gleiche Unterschrift):</p>${others.map((x) => `<label class="check"><input type="checkbox" name="uo-cover" value="${esc(x.id)}" ${(d.covers || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)}</span></label>`).join('')}</section>` : ''}
+      ${m.progress ? `<p class="note" role="status">${esc(m.progress)}</p>` : ''}`,
+    foot: `<button class="btn" data-action="uo-open">Zurück</button><div class="actions"><button class="btn primary" data-action="uo-save" ${m.progress ? 'disabled' : ''}>Speichern${portalOn() ? ' und übertragen' : ''}</button></div>`,
+  })
+}
+registerModal('tr-online-edit', onlineEditModal, { module: MODULE })
+
+/** Video in Teilen zu 4 MB an den Webspace; liefert die Angaben fürs Speichern. */
+async function uploadVideo(typeId, file, onStep) {
+  const type = file.type === 'video/webm' ? 'video/webm' : 'video/mp4'
+  if (file.size > 400 * 1024 * 1024) throw new Error('Das Video ist größer als 400 MB.')
+  const version = sourceKey(`${file.name}|${file.size}|${file.lastModified}|${Date.now()}`)
+  const parts = Math.max(1, Math.ceil(file.size / CHUNK))
+  for (let i = 0; i < parts; i++) {
+    onStep(i, parts)
+    await uwCall('video', undefined, {
+      raw: file.slice(i * CHUNK, (i + 1) * CHUNK),
+      type,
+      extra: `&art=${encodeURIComponent(typeId)}&version=${version}&teil=${i}&teile=${parts}`,
+    })
+  }
+  return { name: file.name, size: file.size, type, version }
+}
+
+registerActions(
+  {
+    'uo-edit': (el) => openModal({ type: 'tr-online-edit', typeId: el.dataset.type }),
+    'uo-lang': (el) => {
+      const m = readOnline()
+      m.lang = el.dataset.lang
+      renderModal()
+    },
+    'uo-template': async () => {
+      const m = readOnline()
+      const d = draftOf(m)
+      if (Object.values(d.texts).some((t) => String(t?.content || '').trim()) && !confirmStep('uo-template', renderModal)) return
+      const { VORLAGE } = await import('../../core/unterweisung-vorlage.js')
+      d.texts = structuredClone(VORLAGE)
+      d.on = true
+      if (!d.covers?.length)
+        d.covers = types()
+          .filter((t) => t.id === 'chemie' && t.id !== m.typeId)
+          .map((t) => t.id)
+      renderModal()
+      toast('Vorlage eingesetzt (6 Sprachen). Bitte durchlesen, an euren Betrieb anpassen und speichern.')
+    },
+    'uo-video-del': () => {
+      const m = readOnline()
+      draftOf(m).video = null
+      m.video = null
+      renderModal()
+    },
+    'uo-save': async () => {
+      const m = readOnline()
+      const d = draftOf(m)
+      const st = languageStatus(d)
+      if (d.on && !st[0].ok) return toast(`Deutsch: ${st[0].errors.join(' ') || 'Inhalt fehlt.'}`)
+      const bad = st.filter((x) => x.id !== 'de' && d.texts[x.id] && !x.ok)
+      if (d.videoLink && !/^https:\/\/\S+$/i.test(d.videoLink)) return toast('Der Video-Link muss mit https:// beginnen.')
+      try {
+        if (m.video) {
+          if (!portalOn()) return toast('Für ein Video muss „Plan am Handy“ eingerichtet sein (Webspace).')
+          d.video = await uploadVideo(m.typeId, m.video, (i, n) => {
+            m.progress = `Video wird hochgeladen: Teil ${i + 1} von ${n} …`
+            renderModal()
+          })
+          m.video = null
+        }
+      } catch (err) {
+        m.progress = ''
+        renderModal()
+        return toast(`Video nicht hochgeladen: ${err.message}`)
+      }
+      m.progress = ''
+      const own = ownTypes().find((t) => t.id === m.typeId)
+      if (!own) return
+      own.online = { ...d, changedAt: nowIso(), changedBy: by() }
+      persist()
+      openModal({ type: 'tr-online' })
+      const r = portalOn() ? await syncOnline({ force: true }) : null
+      renderModal()
+      toast(
+        `Gespeichert${r ? ` und übertragen (${plural(r.personen || 0, 'Person', 'Personen')})` : OS.error ? `, aber nicht übertragen: ${OS.error}` : ''}.${bad.length ? ` Nicht übernommen (Fragen passen nicht): ${bad.map((x) => langInfo(x.id).label).join(', ')}.` : ''}`,
+      )
+    },
+    'uo-sync': async () => {
+      const r = await syncOnline({ force: true })
+      renderModal()
+      renderNow()
+      toast(r ? `Abgeglichen: ${plural(r.eingetragen || 0, 'Nachweis', 'Nachweise')} neu eingetragen.` : OS.error ? `Nicht abgeglichen: ${OS.error}` : 'Nichts abzugleichen.')
+    },
+  },
+  { edit: MODULE },
+)
+
+registerActions({
+  'uo-open': () => openModal({ type: 'tr-online' }),
+  'uo-pdf': async (el) => {
+    const r = doc().records.find((x) => x.id === el.dataset.id)
+    if (!r?.online) return
+    const type = typeOf(r.typeId) || {}
+    const emp = empOf(r.empId) || {}
+    const version = doc().versions?.[r.online.version] || null
+    download(
+      onlineProofName(r, type, emp),
+      await pdfBlob(
+        onlineProofDocument({
+          record: r,
+          type,
+          emp,
+          version,
+          langLabel: (id) => langInfo(id).label,
+          parseContent,
+          parseQuiz,
+          brand: app.config.brand || {},
+          logo: await loadLogo().catch(() => null),
+        }),
+      ),
+    )
+  },
 })
