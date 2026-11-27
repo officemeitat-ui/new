@@ -5,7 +5,8 @@
 //
 // Quellen der Werte: Überstunden & Auszahlung (payMonth: Normalstunden, Mehrarbeit, Überstunden je
 // Tageszeit, Zuschlagsstunden) und die Monatsauswertung (monthReport: Urlaub, Krankenstand, Feiertag,
-// Fahrzeit). Mengen in Stunden (2 Nachkommastellen) bzw. Tagen; Rückzahlung eines Vorschusses in Euro (report: advance).
+// Fahrzeit). Mengen in Stunden (2 Nachkommastellen) bzw. Tagen; Rückzahlung eines Vorschusses in Euro (report: advance);
+// Zulagen je Tätigkeit mit eigener Lohnart je Zulage (report: allowances, core/zulagen.js).
 
 import { lastOfMonth } from './dates.js'
 
@@ -82,6 +83,11 @@ export function exportLines({ month, otRows, report = [], settings }) {
       if (!lohnart || !menge) continue
       lines.push({ pnr: r.employee.personnelNo || '', name: r.employee.name, empId: r.employee.id, key, lohnart, menge, einheit, satz: s.rateOn && einheit === 'h' && r.wage > 0 ? Math.round(r.wage * 100) / 100 : 0, von, bis, text: label })
     }
+    // Zulagen je Tätigkeit (core/zulagen.js, report: allowances): eigene Lohnart je Zulage, Satz = Betrag der Zulage
+    for (const z of m?.allowances || []) {
+      if (!z.wageType || !z.menge) continue
+      lines.push({ pnr: r.employee.personnelNo || '', name: r.employee.name, empId: r.employee.id, key: `zulage:${z.id}`, lohnart: z.wageType, menge: z.menge, einheit: z.einheit, satz: z.rate > 0 ? z.rate : 0, von, bis, text: z.name })
+    }
   }
   return lines
 }
@@ -93,13 +99,17 @@ export function keyTotals({ otRows, report = [] }) {
 }
 
 /** Hinweise vor dem Export: fehlende Personalnummern, Werte ohne Lohnart. */
-export function exportProblems({ lines, totals, settings }) {
+export function exportProblems({ lines, totals, settings, allowances = [] }) {
   const s = { ...EXPORT_DEFAULTS, ...settings }
   const out = []
   const noPnr = [...new Set(lines.filter((l) => !l.pnr).map((l) => l.name))]
   if (noPnr.length) out.push(`Ohne Personalnummer (Zeilen sind so nicht importierbar): ${noPnr.join(', ')}`)
   const unmapped = WAGE_KEYS.filter(([key]) => totals[key] && !String(s.wageTypes?.[key] || '').trim()).map(([, label, unit]) => `${label} (${String(totals[WAGE_KEYS.find((k) => k[1] === label)[0]]).replace('.', ',')} ${unit})`)
   if (unmapped.length) out.push(`Ohne Lohnart, daher nicht in der Datei: ${unmapped.join('; ')}`)
+  if (allowances?.length) {
+    const noType = [...new Set(allowances.filter((z) => z.menge && !z.wageType).map((z) => z.name))]
+    if (noType.length) out.push(`Zulagen ohne Lohnart, daher nicht in der Datei: ${noType.join(', ')} (unter „Zulagen“ eintragen)`)
+  }
   if (!s.columns.includes('pnr') || !s.columns.includes('lohnart') || !s.columns.includes('menge')) out.push('Die Spalten Personalnummer, Lohnart und Menge sollten in der Datei sein.')
   return out
 }

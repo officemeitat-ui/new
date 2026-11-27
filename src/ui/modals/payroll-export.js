@@ -2,10 +2,12 @@
 // Vorschau und Hinweise (fehlende Personalnummern, Werte ohne Lohnart), Datei herunterladen.
 // Die Einstellungen liegen im Zeitkonto (lohn/zeitkonto.json), damit die Lohnverrechnung sie pflegt.
 
-import { MONTH_LONG } from '../../core/dates.js'
+import { lastOfMonth, MONTH_LONG } from '../../core/dates.js'
 import { COLUMNS, EXPORT_DEFAULTS, exportFileName, exportLines, exportProblems, exportText, keyTotals, WAGE_KEYS } from '../../core/payroll-export.js'
-import { monthReport } from '../../core/reports.js'
+import { mondaysBetween, monthReport } from '../../core/reports.js'
 import { deductionsIn } from '../../core/vorschuss.js'
+import { allowancesFromDays } from '../../core/zulagen.js'
+import { buildTimesheet } from '../../core/timesheet.js'
 import { app, canEdit, openModal, persist, registerActions, registerModal, renderModal, toast } from '../context.js'
 import { checked, download, esc, ICON, modalFrame, options, val } from '../shared.js'
 import { payroll } from '../views/overtime.js'
@@ -15,8 +17,25 @@ const settings = () => ({ ...EXPORT_DEFAULTS, ...(app.data.payrollExport || {}),
 function data(month) {
   const p = payroll(month)
   const ded = deductionsIn(app.data.advances || [], month)
-  const report = monthReport(p.range.ctx, month, p.range.instances, p.range.state).map((m) => (ded.has(m.employee.id) ? { ...m, advance: ded.get(m.employee.id) } : m))
+  const zul = monthAllowances(p.range, month)
+  const report = monthReport(p.range.ctx, month, p.range.instances, p.range.state).map((m) => ({ ...m, ...(ded.has(m.employee.id) ? { advance: ded.get(m.employee.id) } : {}), ...(zul.has(m.employee.id) ? { allowances: zul.get(m.employee.id) } : {}) }))
   return { otRows: p.rows, report, missing: p.missing }
+}
+
+/** Zulagen je Tätigkeit im Monat je Person (core/zulagen.js): Map empId → [{ id, name, wageType, menge, einheit, rate, amount }]. */
+export function monthAllowances(range, month) {
+  const list = (app.data.allowances || []).filter((a) => a.active !== false)
+  const out = new Map()
+  if (!list.length) return out
+  const from = `${month}-01`
+  const to = lastOfMonth(from)
+  const weeks = mondaysBetween(from, to)
+  for (const emp of range.ctx.employees) {
+    const days = weeks.flatMap((w) => buildTimesheet(range.ctx, emp, w, range.instances, range.state).days)
+    const z = allowancesFromDays(days, list, { from, to })
+    if (z.length) out.set(emp.id, z)
+  }
+  return out
 }
 
 function readForm(m) {
@@ -36,7 +55,7 @@ function exportModal(c, m) {
   const { otRows, report, missing } = data(month)
   const lines = exportLines({ month, otRows, report, settings: s })
   const totals = keyTotals({ otRows, report })
-  const problems = exportProblems({ lines, totals, settings: s })
+  const problems = exportProblems({ lines, totals, settings: s, allowances: report.flatMap((m) => m.allowances || []) })
   const ed = canEdit('auswertung') && !app.readOnly
   const closed = !!app.data.payroll?.[month]?.closedAt
   const [y, mo] = month.split('-')

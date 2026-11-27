@@ -306,6 +306,15 @@ Unter *Überstunden & Auszahlung* → **„Export Lohnprogramm“** (Rolle Lohnv
 
 **Einmal mit der Lohnverrechnung abstimmen:** Lohnart-Nummern, ob der Stundenlohn als Satz mitgehen soll oder das Lohnprogramm ihn selbst kennt, und ob Urlaub und Krankenstand in Tagen oder Stunden gebucht werden. Den ersten Monat parallel zur bisherigen Erfassung prüfen.
 
+## Zulagen je Tätigkeit
+
+Unter *Überstunden & Auszahlung* → „Export ▾“ → **„Zulagen je Tätigkeit“** (wer Löhne sehen darf): Zulagen für bestimmte Arbeiten, z. B. Schmutzzulage bei der Grundreinigung, Erschwerniszulage für Glasreinigung außen, Höhenzulage. Je Zulage Name, Lohnart, „je Stunde“ oder „je Einsatz“, Betrag und wofür sie gilt: gewählte Leistungen, ganze Objekte, ein Stichwort in der Bezeichnung der Leistung, auf Wunsch nur Sonderleistungen (eine Bedingung genügt).
+
+- **Rechnung** (`src/core/zulagen.js`): je Person und Monat aus dem Wochenzettel – gearbeitete Einsätze laut Plan (nicht Urlaub, Krankenstand oder andere Anrechnungen); je Stunde = Stunden × Betrag, je Einsatz = Anzahl × Betrag.
+- **Export Lohnprogramm:** je Person und Zulage eine Zeile mit ihrer Lohnart, Menge (Stunden bzw. Stück) und dem Betrag als Satz; ohne Lohnart ein Hinweis im Dialog.
+- **Vorschau** im Dialog: wer im Monat welche Zulage bekommt, mit Summe.
+- Gespeichert in `lohn/zeitkonto.json` (`allowances`). Höhe und Anspruch laut Kollektivvertrag bzw. Vereinbarung legt das Büro fest.
+
 ## Lohnvorschuss mit Raten
 
 Unter *Überstunden & Auszahlung* → „Export ▾“ → **„Vorschüsse“** (wer Löhne sehen darf: Lohnverrechnung, Vollzugriff): je Person Tag der Auszahlung, Betrag und Rückzahlung in Raten. „Raten berechnen“ teilt den Betrag auf (erste Rate auf Wunsch anders, z. B. 1000 €, dann je Monat 500 €, die letzte ist der Rest); jede Rate ist danach einzeln änderbar, die Summe muss den Betrag ergeben.

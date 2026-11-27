@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 446 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 447 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (36)
 - [Objekte & Kunden](#objekte-kunden) (117)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
-- [Finanzen](#finanzen) (83)
+- [Finanzen](#finanzen) (84)
 - [Verwaltung](#verwaltung) (76)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
@@ -4529,6 +4529,21 @@ An die Lohnverrechnung geht gesammelt eine E-Mail mit „wer bekommt wie viel“
 > Tipp: Überstunden kommen nur in die Datei, wenn sie ausbezahlt werden.
 > Tipp: Den ersten Monat parallel zur bisherigen Erfassung prüfen.
 > Tipp: Raten eines Lohnvorschusses stehen als „Rückzahlung Vorschuss“ in Euro in der Datei.
+
+### Zulagen je Tätigkeit (Schmutz-, Erschwerniszulage)
+
+*In der App: Überstunden & Auszahlung*
+
+Unter „Zulagen je Tätigkeit“ legst du fest, für welche Arbeiten es eine Zulage gibt (Leistungen, ganze Objekte oder ein Stichwort wie „Glas“) und wie viel: je Stunde oder je Einsatz. Die App rechnet je Person aus den gearbeiteten Einsätzen laut Plan und schreibt je Zulage eine Zeile mit ihrer Lohnart in den Export fürs Lohnprogramm.
+
+1. „Überstunden & Auszahlung“ → „Export ▾“ → „Zulagen je Tätigkeit“.
+2. „Neue Zulage“: Name, Lohnart, je Stunde oder je Einsatz, Betrag.
+3. Wählen, wofür sie gilt: Stichwort, ganze Objekte oder einzelne Leistungen; speichern.
+4. Die Vorschau zeigt, wer im Monat welche Zulage bekommt; „Export Lohnprogramm“ enthält die Zeilen.
+
+> Tipp: Höhe und Anspruch laut Kollektivvertrag bzw. Vereinbarung legt ihr fest; die App rechnet nur.
+> Tipp: Urlaub und Krankenstand zählen nicht, nur gearbeitete Einsätze.
+> Tipp: Ohne Lohnart steht die Zulage als Hinweis im Export, aber nicht in der Datei.
 
 ### Lohnvorschuss mit Raten
 

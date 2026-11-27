@@ -3770,6 +3770,18 @@ export const TOPICS = [
     related: ['ueberstunden', 'monatsauswertung', 'lohnvorschuss'],
   },
   {
+    id: 'zulagen',
+    section: 'finanzen',
+    view: 'overtime',
+    title: 'Zulagen je Tätigkeit (Schmutz-, Erschwerniszulage)',
+    q: ['zulage', 'schmutzzulage', 'erschwerniszulage', 'höhenzulage', 'zulage glasreinigung', 'zulage grundreinigung', 'zulage lohnart', 'zulagen lohn export'],
+    answer: 'Unter „Zulagen je Tätigkeit“ legst du fest, für welche Arbeiten es eine Zulage gibt (Leistungen, ganze Objekte oder ein Stichwort wie „Glas“) und wie viel: je Stunde oder je Einsatz. Die App rechnet je Person aus den gearbeiteten Einsätzen laut Plan und schreibt je Zulage eine Zeile mit ihrer Lohnart in den Export fürs Lohnprogramm.',
+    steps: ['„Überstunden & Auszahlung“ → „Export ▾“ → „Zulagen je Tätigkeit“.', '„Neue Zulage“: Name, Lohnart, je Stunde oder je Einsatz, Betrag.', 'Wählen, wofür sie gilt: Stichwort, ganze Objekte oder einzelne Leistungen; speichern.', 'Die Vorschau zeigt, wer im Monat welche Zulage bekommt; „Export Lohnprogramm“ enthält die Zeilen.'],
+    tips: ['Höhe und Anspruch laut Kollektivvertrag bzw. Vereinbarung legt ihr fest; die App rechnet nur.', 'Urlaub und Krankenstand zählen nicht, nur gearbeitete Einsätze.', 'Ohne Lohnart steht die Zulage als Hinweis im Export, aber nicht in der Datei.'],
+    action: { action: 'zul-open', label: 'Zulagen öffnen' },
+    related: ['lohnexport', 'ueberstunden'],
+  },
+  {
     id: 'lohnvorschuss',
     section: 'finanzen',
     view: 'overtime',

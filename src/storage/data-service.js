@@ -7,7 +7,7 @@
 //   plaene/2026/2026-10-26.json       Einteilungen einer Woche + Änderungsprotokoll (mit Stempelungen und
 //                                     Checklisten vom Handy; Fotos der Checklisten unter plaene/checklisten/<Jahr>/)
 //   personal/abwesenheiten.json       Urlaub, Krankenstand, … (Gesundheitsdaten)
-//   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse, Lohnvorschüsse
+//   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse, Lohnvorschüsse, Zulagen
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
 //   fahrzeuge/fahrtenbuch/2026.json   Fahrtenbuch je Fahrzeug, eine Datei je Jahr (YEAR_DOCS, erst bei Bedarf geladen)
 //   reklamationen/reklamationen.json  Reklamationen je Objekt
@@ -453,7 +453,7 @@ export function splitData(data, weeks, years = []) {
     [DOC.absences]: { absences: data.absences || [] },
     [DOC.absent]: { absent: absentList(data) },
     // pay immer schreiben (auch leer): ein gelöschter Lohn muss bei anderen Geräten ankommen
-    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), ...(data.advances?.length ? { advances: data.advances } : {}), pay },
+    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), ...(data.advances?.length ? { advances: data.advances } : {}), ...(data.allowances?.length ? { allowances: data.allowances } : {}), pay },
   }
   for (const [key, m] of Object.entries(MODULE_DOCS)) docs[m.path] = data[key] ?? m.empty()
   for (const [key, m] of Object.entries(YEAR_DOCS)) {
@@ -515,6 +515,9 @@ export function applyDoc(data, path, doc, weekEmpty = false) {
     // Lohnvorschüsse mit Raten (core/vorschuss.js)
     if (doc.advances) data.advances = doc.advances
     else delete data.advances
+    // Zulagen je Tätigkeit (core/zulagen.js)
+    if (doc.allowances) data.allowances = doc.allowances
+    else delete data.allowances
     // mit pay (auch leer) gilt nur, was dort steht; ältere Dateien ohne pay lassen Löhne aus den Stammdaten stehen
     if (doc.pay) {
       const known = new Set((data.employees || []).map((e) => e.id))
