@@ -333,8 +333,9 @@ export async function publish({ ids = null, force = false } = {}) {
       let lieferscheine = null
       if (showOf(link).lieferscheine && seesInvoices()) {
         const list = await (await mattenPortal()).mattenNotes(link)
-        invoiceFiles.set(link.id, [...(invoiceFiles.get(link.id) || []), ...list])
-        lieferscheine = list.map(({ make, ...entry }) => entry)
+        // Fotonachweise (files) als eigene Dateien zum Hochladen, nicht als Lieferschein
+        invoiceFiles.set(link.id, [...(invoiceFiles.get(link.id) || []), ...list, ...list.flatMap((x) => x.files || [])])
+        lieferscheine = list.map(({ make, files, ...entry }) => entry)
       }
       const mattenwechsel = nextMatten.get(link.id) ?? null
       payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise, rechnungen, lieferscheine, mattenwechsel, status: stand.get(link.id) ?? null }))
@@ -760,6 +761,7 @@ function mattenSection(d) {
   const next = d.show?.mattenwechsel === true
   const head = `<h3>Mattenwechsel</h3>
     <label class="check"><input type="checkbox" id="kb-show-lieferscheine" data-change="kbm-toggle" ${ls ? 'checked' : ''}><span><strong>${esc(SHOW.lieferscheine)}</strong>: Nummer, Datum, Objekt, Liegeplätze mit Mengen, wer unterschrieben hat, PDF ohne Preise</span></label>
+    ${ls ? `<label class="check"><input type="checkbox" id="kb-show-fotos" ${d.show?.fotos === true ? 'checked' : ''}><span><strong>${esc(SHOW.fotos)}</strong>: PDF mit den Fotos des Fahrers je Wechsel (wenn er welche gemacht hat), ohne Namen von Mitarbeitenden</span></label>` : ''}
     <label class="check"><input type="checkbox" id="kb-show-mattenwechsel" data-change="kbm-toggle" ${next ? 'checked' : ''}><span><strong>${esc(SHOW.mattenwechsel)}</strong>: nur das Datum aus der Fälligkeit</span></label>`
   if (!ls && !next) return head
   const all = fakCustomers()

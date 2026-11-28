@@ -1640,6 +1640,7 @@ Je Link lassen sich „Mattenwechsel-Lieferscheine zeigen“ und „Nächsten Ma
 4. „Speichern und übertragen“ klicken.
 
 > Tipp: Nur festgeschriebene, nicht stornierte Lieferscheine der gewählten Kunden an den Objekten des Links; ein Storno verschwindet beim nächsten Übertragen.
+> Tipp: Mit „Fotonachweis zum Lieferschein zeigen“ (Standard: aus) bekommt jeder Lieferschein mit Fotos des Fahrers das PDF dazu, ohne Namen von Mitarbeitenden.
 > Tipp: Lieferscheine überträgt, wer die Fakturierung sieht, den nächsten Wechsel, wer den Mattenwechsel sieht; sonst bleibt am Webspace der letzte Stand.
 
 *Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen*

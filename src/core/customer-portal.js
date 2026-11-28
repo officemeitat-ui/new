@@ -28,6 +28,7 @@ export const SHOW = {
   reklamation: 'Reklamation melden und den Stand sehen',
   rechnungen: 'Rechnungen und offene Posten zeigen',
   lieferscheine: 'Mattenwechsel-Lieferscheine zeigen',
+  fotos: 'Fotonachweis zum Lieferschein zeigen (Fotos des Fahrers)',
   mattenwechsel: 'Nächsten Mattenwechsel je Liegeplatz zeigen',
   zusatz: 'Zusatzleistung anfragen (z. B. Grundreinigung, Glasreinigung) und den Stand sehen',
   status: 'Stand im Objekt: zuletzt und als Nächstes gereinigt, Winterdienst, offene Meldungen',
@@ -36,7 +37,7 @@ export const SHOW = {
  * Standardmäßig aus (eigene Abschnitte im Dialog, Belege nur der gewählten Kunden der Fakturierung): Rechnungen,
  * Lieferscheine des Mattenwechsels und der nächste Mattenwechsel je Liegeplatz (core/customer-matten.js).
  */
-export const SHOW_OFF = ['rechnungen', 'lieferscheine', 'mattenwechsel']
+export const SHOW_OFF = ['rechnungen', 'lieferscheine', 'fotos', 'mattenwechsel']
 /**
  * Standardmäßig aus, aber in der Liste „Was der Link zeigt“: Zusatzleistung anfragen (core/zusatzleistungen.js) und
  * der Stand im Objekt (objectStatus). Neu dazugekommen, darum bei bestehenden Links erst, wenn das Büro es je Link

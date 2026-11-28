@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-import { nextExchanges, NOTE_FILE_PATTERN, noteEntry, noteFile, notePlaces, noteSigner, noteSigText, portalNotes } from '../src/core/customer-matten.js'
+import { nextExchanges, NOTE_FILE_PATTERN, noteEntry, noteFile, notePlaces, noteSigner, noteSigText, PHOTO_FILE_PATTERN, photoFile, photoSigText, portalNotes } from '../src/core/customer-matten.js'
 import { deliveryNoteSettings, linkMail, linkPayload, NOTE_MONTH_CHOICES, SHOW, showDefaults, suggestNoteCustomers } from '../src/core/customer-portal.js'
 import { finalize, stornoDraft } from '../src/core/invoicing.js'
 import { confirmPlacement, finishStop, markNotPossible, setQuantity } from '../src/core/matten-fahrt.js'
@@ -117,6 +117,20 @@ test('Kundenbereich: Schalter für Lieferscheine und nächsten Wechsel, Standard
   assert.equal(noteFile({ number: 'LS-2026-000123' }), 'lieferschein-LS-2026-000123.pdf')
   assert.equal(noteFile({ number: 'LS/2026 7' }), 'lieferschein-LS-2026-7.pdf')
   assert.ok(NOTE_FILE_PATTERN.test('lieferschein-LS-2026-000123.pdf') && !NOTE_FILE_PATTERN.test('../lieferschein-LS-1.pdf') && !NOTE_FILE_PATTERN.test('lieferschein-LS-1.pdf.php') && !NOTE_FILE_PATTERN.test('rechnung-RE-1.pdf'))
+})
+
+test('Fotonachweis zum Lieferschein: Schalter Standard aus, Dateiname wie in kunden.php, Signatur ändert sich mit den Fotos', () => {
+  assert.equal(showDefaults().fotos, false)
+  assert.ok(PHP.includes("'fotos'") && SHOW.fotos)
+  assert.ok(PHP.includes(`const FN_MUSTER = '/${PHOTO_FILE_PATTERN.source}/';`), 'gleiches Muster in kunden.php')
+  assert.equal(photoFile({ number: 'LS-2026-000123' }), 'fotonachweis-LS-2026-000123.pdf')
+  assert.ok(PHOTO_FILE_PATTERN.test(photoFile({ number: 'LS/2026 7' })) && !PHOTO_FILE_PATTERN.test('../fotonachweis-LS-1.pdf') && !PHOTO_FILE_PATTERN.test('lieferschein-LS-1.pdf'))
+  const d = { id: 'd1', number: 'LS-1', checksum: 'abc' }
+  assert.equal(photoSigText(d, ['b.jpg', 'a.jpg']), photoSigText(d, ['a.jpg', 'b.jpg']), 'Reihenfolge egal')
+  assert.notEqual(photoSigText(d, ['a.jpg']), photoSigText(d, ['a.jpg', 'b.jpg']), 'neues Foto → neue Signatur')
+  const e = noteEntry({ number: 'LS-1', date: '2026-11-20', lines: [] }, { sig: 'f'.repeat(32), foto: { datei: 'fotonachweis-LS-1.pdf', sig: 'e'.repeat(32), anzahl: 3, name: 'Fotonachweis_LS-1.pdf' } })
+  assert.deepEqual(e.foto, { datei: 'fotonachweis-LS-1.pdf', sig: 'e'.repeat(32), anzahl: 3, name: 'Fotonachweis_LS-1.pdf' })
+  assert.equal('foto' in noteEntry({ number: 'LS-1', lines: [] }), false)
 })
 
 test('Lieferscheine eines Links: nur festgeschrieben, aus dem Mattenwechsel, nicht storniert, seine Kunden und Objekte, Zeitraum', () => {

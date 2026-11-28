@@ -76,7 +76,7 @@ require __DIR__ . '/webspace-lib.php';
 
 const ARTEN = ['Reinigung mangelhaft' => 'Reinigung nicht in Ordnung', 'Leistung nicht erbracht' => 'Leistung nicht erbracht', 'Schaden' => 'Schaden', 'Sonstiges' => 'Sonstiges'];
 const STATUS = ['eingegangen' => 'eingegangen', 'arbeit' => 'in Arbeit', 'erledigt' => 'erledigt'];
-const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'mattenwechsel', 'zusatz', 'status'];
+const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'fotos', 'mattenwechsel', 'zusatz', 'status'];
 const BILD_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const BILD_MAX = 8 * 1024 * 1024;
 const PDF_MAX = 8 * 1024 * 1024;
@@ -94,6 +94,8 @@ const BELEG_STATUS = ['offen' => 'offen', 'ueberfaellig' => 'überfällig', 'tei
 const QR_MAX = 24000; // Base64 des QR-Bilds (PNG)
 // Mattenwechsel: Lieferscheine (Dateiname aus der Nummer wie in der App, core/customer-matten.js)
 const LS_MUSTER = '/^lieferschein-[A-Za-z0-9-]{1,40}\.pdf$/';
+// Fotonachweis zum Lieferschein (Fotos des Fahrers, PDF ohne Preise); nur mit „Fotonachweis zeigen“ am Link
+const FN_MUSTER = '/^fotonachweis-[A-Za-z0-9-]{1,40}\.pdf$/';
 // Angebot online annehmen
 const ANGEBOT_MUSTER = '/^an[a-f0-9]{10}$/';
 const UNTERSCHRIFT_MUSTER = '/^M[0-9. ML]{2,16000}$/';
@@ -510,6 +512,15 @@ function rechnungen_lesen(array $liste): array
     return $aus;
 }
 
+/** Fotonachweis zu einem Lieferschein: { datei, sig, anzahl, name } oder null. */
+function foto_lesen($f): ?array
+{
+    if (!is_array($f) || !preg_match(FN_MUSTER, (string) ($f['datei'] ?? '')) || !preg_match('/^[a-f0-9]{16,64}$/', (string) ($f['sig'] ?? ''))) {
+        return null;
+    }
+    return ['datei' => (string) $f['datei'], 'sig' => (string) $f['sig'], 'anzahl' => max(0, min(99, (int) ($f['anzahl'] ?? 0))), 'name' => pdf_name($f['name'] ?? null, (string) $f['datei'])];
+}
+
 /** Lieferscheine des Mattenwechsels aus „speichern“: nur bekannte Felder, geprüft und gekürzt, keine Preise. */
 function lieferscheine_lesen(array $liste): array
 {
@@ -556,6 +567,7 @@ function lieferscheine_lesen(array $liste): array
             'unterschrift' => $unterschrift,
             'name' => pdf_name($r['name'] ?? null, $datei),
             'sig' => (string) $r['sig'],
+            'foto' => foto_lesen($r['foto'] ?? null),
         ];
     }
     return $aus;
@@ -1146,12 +1158,13 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         $datei = (string) ($_GET['datei'] ?? '');
         $link = preg_match(LINK_MUSTER, $id) ? json_lesen(link_datei($id)) : [];
         $eintrag = null;
-        foreach (array_merge((array) ($link['nachweise'] ?? []), (array) ($link['rechnungen'] ?? []), (array) ($link['lieferscheine'] ?? [])) as $n) {
+        $fotoEintraege = array_values(array_filter(array_map(fn ($r) => $r['foto'] ?? null, (array) ($link['lieferscheine'] ?? []))));
+        foreach (array_merge((array) ($link['nachweise'] ?? []), (array) ($link['rechnungen'] ?? []), (array) ($link['lieferscheine'] ?? []), $fotoEintraege) as $n) {
             if (($n['datei'] ?? '') === $datei) {
                 $eintrag = $n;
             }
         }
-        if (!$link || !(preg_match(DATEI_MUSTER, $datei) || preg_match(BELEG_MUSTER, $datei) || preg_match(LS_MUSTER, $datei)) || !$eintrag) {
+        if (!$link || !(preg_match(DATEI_MUSTER, $datei) || preg_match(BELEG_MUSTER, $datei) || preg_match(LS_MUSTER, $datei) || preg_match(FN_MUSTER, $datei)) || !$eintrag) {
             json_ausgabe(404, ['fehler' => 'Link oder Datei unbekannt (zuerst speichern)']);
         }
         $inhalt = pdf_aus_anfrage();
@@ -1583,7 +1596,8 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
             $standZeit = jetzt();
         }
         // Dateien, die nicht mehr in der Liste stehen, löschen; fehlende oder geänderte melden
-        $liste = array_column(array_merge($nachweise, $rechnungen, $lieferscheine), null, 'datei');
+        $fotos = array_values(array_filter(array_map(fn ($r) => $r['foto'] ?? null, $lieferscheine)));
+        $liste = array_column(array_merge($nachweise, $rechnungen, $lieferscheine, $fotos), null, 'datei');
         $dateien = array_filter((array) ($alt['dateien'] ?? []), fn ($d, $name) => isset($liste[$name]) && is_file(link_ordner($id) . '/' . $name), ARRAY_FILTER_USE_BOTH);
         foreach (glob(link_ordner($id) . '/*.pdf') ?: [] as $f) {
             if (!isset($liste[basename($f)])) {
@@ -1935,6 +1949,10 @@ if (isset($_GET['datei'])) {
     foreach (!empty($zeige['lieferscheine']) ? (array) ($link['lieferscheine'] ?? []) : [] as $r) {
         if (($r['datei'] ?? '') === $datei && preg_match(LS_MUSTER, $datei)) {
             $eintrag = $r;
+        }
+        // Fotonachweis nur, wenn der Link ihn zeigt
+        if (!empty($zeige['fotos']) && is_array($r['foto'] ?? null) && ($r['foto']['datei'] ?? '') === $datei && preg_match(FN_MUSTER, $datei)) {
+            $eintrag = $r['foto'];
         }
     }
     $pfad = link_ordner($id) . '/' . $datei;
@@ -2384,7 +2402,9 @@ if (!empty($zeige['mattenwechsel']) || !empty($zeige['lieferscheine'])) {
             $block .= ($i === 8 ? '<details class="aelter"><summary>Ältere Lieferscheine</summary>' : '')
                 . '<div class="beleg ls"><a class="pdf" href="kunden.php?k=' . $k . '&amp;datei=' . $h($r['datei']) . '" target="_blank" rel="noopener">' . svg_pdf() . '<span class="was"><b>Lieferschein <span class="nr">' . $h($r['nummer']) . '</span></b>'
                 . '<span class="leise">' . $h(implode(' · ', array_filter($teil))) . ' · PDF, ' . groesse_text((int) ($link['dateien'][$r['datei']]['groesse'] ?? 0)) . '</span></span>' . svg_pfeil() . '</a>'
-                . ($plaetze !== '' ? '<ul class="plaetze">' . $plaetze . '</ul>' : '') . ($wer !== '' ? '<p class="wer">' . $h($wer) . '</p>' : '') . '</div>';
+                . ($plaetze !== '' ? '<ul class="plaetze">' . $plaetze . '</ul>' : '') . ($wer !== '' ? '<p class="wer">' . $h($wer) . '</p>' : '')
+                . (!empty($zeige['fotos']) && is_array($r['foto'] ?? null) && isset($link['dateien'][$r['foto']['datei']]) ? '<p class="fotos"><a href="kunden.php?k=' . $k . '&amp;datei=' . $h($r['foto']['datei']) . '" target="_blank" rel="noopener">Fotonachweis (' . (int) $r['foto']['anzahl'] . ' ' . ((int) $r['foto']['anzahl'] === 1 ? 'Foto' : 'Fotos') . ', PDF, ' . groesse_text((int) ($link['dateien'][$r['foto']['datei']]['groesse'] ?? 0)) . ')</a></p>' : '')
+                . '</div>';
         }
         $block .= count($belege) > 8 ? '</details>' : '';
         $monateLs = max(1, (int) ($link['lieferscheineMonate'] ?? 13));

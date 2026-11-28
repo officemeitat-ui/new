@@ -28,6 +28,12 @@ export function noteFile(d) {
   const nr = String(d?.number || '').replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
   return `lieferschein-${nr || 'beleg'}.pdf`
 }
+/** Fotonachweis am Webspace: „fotonachweis-LS-2026-000123.pdf“ (gleiches Muster in kunden.php: FN_MUSTER). */
+export const photoFile = (d) => noteFile(d).replace(/^lieferschein-/, 'fotonachweis-')
+export const PHOTO_FILE_PATTERN = /^fotonachweis-[A-Za-z0-9-]{1,40}\.pdf$/
+/** Text für die Signatur des Fotonachweises: ändert sich mit dem Beleg und den Fotos. */
+export const photoSigText = (d, paths = []) => JSON.stringify(['fn1', d.id, d.number, d.checksum || '', [...paths].sort()])
+
 /** Gleiches Muster in kunden.php (LS_MUSTER). */
 export const NOTE_FILE_PATTERN = /^lieferschein-[A-Za-z0-9-]{1,40}\.pdf$/
 
@@ -89,7 +95,7 @@ export function noteSigner(doc) {
  * Was der Webspace je Lieferschein speichert (aktion=speichern, Liste „lieferscheine“). Keine Preise, keine Beträge,
  * keine Artikelnummern, kein Fahrer, keine Unterschrift als Bild: die stehen (außer den Preisen) im PDF.
  */
-export function noteEntry(d, { sig = '' } = {}) {
+export function noteEntry(d, { sig = '', foto = null } = {}) {
   const time = text(d?.source?.time)
   return {
     datei: noteFile(d),
@@ -101,6 +107,8 @@ export function noteEntry(d, { sig = '' } = {}) {
     unterschrift: noteSigner(d),
     name: noteFileName(d),
     sig,
+    // Fotonachweis (nur mit „Fotonachweis zeigen“ am Link und wenn der Fahrer Fotos gemacht hat)
+    ...(foto ? { foto } : {}),
   }
 }
 
